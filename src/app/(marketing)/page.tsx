@@ -1,23 +1,26 @@
-import Link from 'next/link';
-import { Button } from '@/components/ui/Button';
+import { Hero } from '@/components/marketing/Hero';
+import { FeatureGrid } from '@/components/marketing/FeatureGrid';
+import { HowItWorks } from '@/components/marketing/HowItWorks';
+import { Showcase } from '@/components/marketing/Showcase';
+import { PricingGrid } from '@/components/marketing/PricingGrid';
+import { FAQList } from '@/components/marketing/FAQList';
+import { CTABand } from '@/components/marketing/CTABand';
 
-// Placeholder landing page. The real port of index.html (from pulseq-site.zip) happens in
-// Phase 7 (Section 10) once the design system asset is available — see DECISIONS.md.
+// Section 4.3's index.html port. No design reference file (pulseq-site.zip / index.html) was
+// provided to this build — Phase 1's DECISIONS.md already flagged this and deferred the actual
+// port to this phase — so "pixel-for-pixel" isn't achievable here; this is a conventional
+// interpretation of the named component list, using the existing placeholder token system and
+// real copy drawn from PulseQ_PRD.md rather than lorem ipsum. See DECISIONS.md.
 export default function MarketingPage() {
   return (
-    <main className="mx-auto flex max-w-2xl flex-col items-center px-6 py-24 text-center">
-      <h1 className="text-3xl font-semibold text-primary">PulseQ</h1>
-      <p className="mt-4 text-lg text-secondary">
-        Curriculum-aligned exam practice for Kasr Al Ainy and Egyptian medical students.
-      </p>
-      <div className="mt-8 flex gap-3">
-        <Link href="/sign-up">
-          <Button>Get started</Button>
-        </Link>
-        <Link href="/sign-in">
-          <Button variant="secondary">Sign in</Button>
-        </Link>
-      </div>
-    </main>
+    <>
+      <Hero />
+      <FeatureGrid />
+      <HowItWorks />
+      <Showcase />
+      <PricingGrid />
+      <FAQList />
+      <CTABand />
+    </>
   );
 }

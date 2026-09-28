@@ -559,3 +559,51 @@ looks identical to a hung UI from the outside, not an obviously-empty-state erro
   actually configured" variant was verified once, separately, with fake credentials plus the same
   route-abort, specifically to avoid reintroducing that shared-server network dependency into
   every other spec.
+
+## Phase 7 — Marketing site
+
+- **"Pixel-for-pixel" against `index.html` is not achievable in this build — no reference file
+  exists.** Phase 1's DECISIONS.md already flagged this (`pulseq-site.zip`/`index.html` were never
+  provided, only the two PRD markdown files and later the sample xlsx) and explicitly deferred the
+  actual visual port to this phase. That gap hasn't closed. What's built instead is a conventional,
+  coherent interpretation of Section 4.3's named component list (`Hero`, `FeatureGrid`,
+  `HowItWorks`, `Showcase`, `PricingGrid`, `FAQList`, `CTABand`, plus `MarketingHeader`/
+  `MarketingFooter`, not explicitly named but needed for a real page), built against the same
+  placeholder design-token system the rest of the app already uses, so the marketing page reads as
+  part of one product rather than a bolted-on skin. Visually verified via Playwright screenshots
+  at desktop (1440px) and mobile (390px) widths in both themes (not committed — a one-off manual
+  QA step, not a repo artifact) rather than an automated visual-regression check, since there's no
+  reference to diff against. **When the real `index.html`/design zip is provided, treat this
+  phase's components as the ones to replace/adjust, not the page structure** — Section 4.3's
+  component names were followed as-built specifically so that swap-in is a content/styling change
+  per component, not a rearchitecture.
+- **Every word of copy is drawn from `PulseQ_PRD.md`** (Sections 2-7) rather than generic SaaS
+  placeholder text — the problem statement (scattered WhatsApp PDFs, unverified question dumps),
+  the feature set (Sections 6.2-6.4), the exact pricing and cap numbers (Section 6.6, already
+  built in Phase 6), and FAQ answers pulled from the same source (e.g. "every published question
+  is reviewed by a second person," Section 8) rather than invented claims. The one FAQ answer that
+  doesn't promise something already true — Arabic support — is phrased as "on our roadmap," matching
+  Phase 8's actual position in the build order, not as if it already shipped.
+- **`TestimonialGrid` is built (Section 4.3 lists it) but not composed into the live page.**
+  PulseQ has no real users pre-launch and this build has no source of genuine student quotes.
+  Fabricating testimonials attributed to invented people and presenting them as real social proof
+  on what is meant to become this product's real, live marketing page would be exactly the kind of
+  fabricated-endorsement content worth refusing outright, not a "good enough for now" placeholder
+  — unlike a component with no content yet, a fake five-star quote from "a Kasr Al Ainy student"
+  reads as genuine and is designed to be trusted at face value. The component takes `testimonials`
+  as a required prop with no built-in sample data, so it can't be reused with placeholder
+  fabrications by accident; wire it into the page once real testimonials exist (beta feedback,
+  the closed-beta cohort mentioned in the product PRD's release plan, Section 10).
+- **`Showcase` is a static, hand-built mock of the tutor-mode question screen — not a real
+  screenshot.** With no design reference to capture one from, and no interest in fabricating a
+  fake "product screenshot," it's built from the same visual language `OptionRow.tsx` already
+  uses (the real component), with an illustrative, generic cardiology question clearly meant to
+  demonstrate the interaction pattern (immediate feedback + explanation) rather than pass as a
+  screenshot of the live app.
+- **No auth-based redirect for a signed-in user visiting `/`.** The marketing route stays a plain,
+  fast, unauthenticated page (no `getServerUser()` call, no Firebase Admin dependency on this
+  route at all) rather than checking session state and bouncing a signed-in visitor to
+  `/dashboard` — simpler, keeps the route static (confirmed by the build output: `/` remains
+  prerendered at 178 B), and a signed-in user landing on the marketing page instead of the
+  dashboard is a minor, harmless inconvenience next to adding a server-side auth check to the
+  one route in this app that's supposed to load fastest and needs the least.
