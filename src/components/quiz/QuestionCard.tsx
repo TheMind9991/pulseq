@@ -2,6 +2,11 @@ import { OptionRow } from '@/components/quiz/OptionRow';
 import { ExplanationPanel } from '@/components/quiz/ExplanationPanel';
 import type { QuestionOption } from '@/lib/schemas/question';
 
+// 'immediate' (tutor, Section 5.2): reveal once this question has an answer, then lock.
+// 'hidden' (exam, in progress, Section 5.3): never reveal, stays editable.
+// 'always' (exam review, Section 5.3): always reveal, even for a skipped question, read-only.
+export type FeedbackMode = 'immediate' | 'hidden' | 'always';
+
 interface QuestionCardProps {
   stem: string;
   options: QuestionOption[];
@@ -9,6 +14,7 @@ interface QuestionCardProps {
   correctExplanation: string;
   selectedOptionId: string | null;
   isCorrect: boolean | null;
+  feedbackMode: FeedbackMode;
   onSelect: (optionId: string) => void;
 }
 
@@ -19,9 +25,11 @@ export function QuestionCard({
   correctExplanation,
   selectedOptionId,
   isCorrect,
+  feedbackMode,
   onSelect,
 }: QuestionCardProps) {
   const answered = selectedOptionId !== null;
+  const showCorrectness = feedbackMode === 'always' || (feedbackMode === 'immediate' && answered);
 
   return (
     <div className="rounded-lg border border-subtle bg-surface p-6">
@@ -34,13 +42,12 @@ export function QuestionCard({
             isSelected={selectedOptionId === option.id}
             isCorrectOption={correctOptionId === option.id}
             answered={answered}
+            feedbackMode={feedbackMode}
             onSelect={() => onSelect(option.id)}
           />
         ))}
       </div>
-      {answered && isCorrect !== null && (
-        <ExplanationPanel isCorrect={isCorrect} correctExplanation={correctExplanation} />
-      )}
+      {showCorrectness && <ExplanationPanel isCorrect={isCorrect} correctExplanation={correctExplanation} />}
     </div>
   );
 }

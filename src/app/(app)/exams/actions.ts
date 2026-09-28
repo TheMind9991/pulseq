@@ -3,22 +3,21 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { getCurrentProfile } from '@/lib/auth/getServerUser';
-import { sessionBuilderSchema, type SessionBuilderInput } from '@/lib/schemas/session';
+import { examBuilderSchema, type ExamBuilderInput } from '@/lib/schemas/session';
 import { selectSessionQuestions } from '@/lib/sessions/selectQuestions';
 import type { SessionFilters } from '@/types';
 
 type StartSessionResult = { sessionId: string } | { error: string };
 
-// Section 5.2 steps 1-2: server action that turns the builder's filters into a fixed
-// questionIds order and creates the sessions doc. Question selection itself is shared with
-// startExamSession — see src/lib/sessions/selectQuestions.ts and DECISIONS.md.
-export async function startPracticeSession(input: SessionBuilderInput): Promise<StartSessionResult> {
+// Section 5.3: "Same flow as 5.2 but: mode: 'timed_exam', a duration is set at session
+// creation..." — shares question selection with startPracticeSession (selectSessionQuestions).
+export async function startExamSession(input: ExamBuilderInput): Promise<StartSessionResult> {
   const current = await getCurrentProfile();
   if (!current) return { error: 'You must be signed in.' };
 
-  const parsed = sessionBuilderSchema.safeParse(input);
-  if (!parsed.success) return { error: 'Invalid session filters.' };
-  const { subjects, topics, difficulty, status, questionCount } = parsed.data;
+  const parsed = examBuilderSchema.safeParse(input);
+  if (!parsed.success) return { error: 'Invalid exam settings.' };
+  const { subjects, topics, difficulty, status, questionCount, durationMinutes } = parsed.data;
 
   const { uid, profile } = current;
   const db = getAdminDb();
@@ -44,10 +43,11 @@ export async function startPracticeSession(input: SessionBuilderInput): Promise<
   await sessionRef.set({
     tenantId: profile.tenantId,
     userId: uid,
-    mode: 'tutor',
+    mode: 'timed_exam',
     questionIds: selection.questionIds,
     answers: {},
     filters,
+    durationSeconds: durationMinutes * 60,
     startedAt: FieldValue.serverTimestamp(),
     completedAt: null,
   });

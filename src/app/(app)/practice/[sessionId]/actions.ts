@@ -3,6 +3,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { getCurrentProfile } from '@/lib/auth/getServerUser';
+import { upsertUserQuestionStats } from '@/lib/sessions/userQuestionStats';
 import type { QuestionDoc, SessionAnswer, SessionDoc } from '@/types';
 
 type SubmitAnswerResult =
@@ -76,29 +77,15 @@ export async function submitAnswer(
     sessionUpdate.score = { correct: correctCount, total: session.questionIds.length };
   }
 
-  const statsRef = db.collection('userQuestionStats').doc(`${uid}_${questionId}`);
-  const statsSnap = await statsRef.get();
-
   const batch = db.batch();
   batch.update(sessionRef, sessionUpdate);
-  if (statsSnap.exists) {
-    batch.update(statsRef, {
-      timesSeen: FieldValue.increment(1),
-      timesCorrect: FieldValue.increment(isCorrect ? 1 : 0),
-      lastSeenAt: FieldValue.serverTimestamp(),
-    });
-  } else {
-    batch.set(statsRef, {
-      userId: uid,
-      questionId,
-      subject: question.subject,
-      topic: question.topic,
-      timesSeen: 1,
-      timesCorrect: isCorrect ? 1 : 0,
-      lastSeenAt: FieldValue.serverTimestamp(),
-      bookmarked: false,
-    });
-  }
+  await upsertUserQuestionStats(db, batch, {
+    uid,
+    questionId,
+    subject: question.subject,
+    topic: question.topic,
+    isCorrect,
+  });
   await batch.commit();
 
   return {

@@ -106,6 +106,7 @@ export function PracticeSession({
           correctExplanation={currentQuestion.correctExplanation}
           selectedOptionId={currentAnswer.selectedOptionId}
           isCorrect={currentAnswer.isCorrect}
+          feedbackMode="immediate"
           onSelect={onSelectOption}
         />
         {error && <p className="mt-3 text-sm text-danger">{error}</p>}

@@ -243,3 +243,64 @@ than stall. Newest entries at the bottom of each phase's section.
   after a cold emulator restart, the very first trigger dispatch was slow enough that a single
   immediate read raced it, even though the function's own execution time was consistently
   under 500ms once warm.
+
+## Phase 4 — Timed exams
+
+- **Refactored shared logic out of the tutor-mode practice code before building exams**, rather
+  than duplicating it: question selection (`src/lib/sessions/selectQuestions.ts`), the
+  `userQuestionStats` upsert (`src/lib/sessions/userQuestionStats.ts`), and the subject/topic/
+  difficulty/status filter UI + state (`useSessionFilters` hook +
+  `components/quiz/SessionFilterFields.tsx`, `components/ui/Chip.tsx`). Section 5.3 itself says
+  "Same flow as 5.2 but..." — the spec's own framing already treats these as one shared flow, not
+  two parallel implementations. No behavior change to the existing practice loop; re-ran its e2e
+  test after the refactor to confirm.
+- **Exam answers are freely overwritable pre-submission; userQuestionStats is only updated once,
+  at final submission — not on every draft change.** Tutor mode's `submitAnswer` locks an answer
+  in immediately (matching its immediate-reveal UX), so updating stats at answer time is correct
+  there. An exam answer can be changed any number of times before submitting (Section 5.3 implies
+  free navigation with no per-question lock, unlike tutor mode), so updating stats on every
+  intermediate change would inflate `timesSeen`/`timesCorrect` for a question the student simply
+  reconsidered. `saveExamAnswer` writes only `sessions.answers` (with `isCorrect: null` —
+  correctness is computed once, for real, at submission, not guessed at draft time); `submitExam`
+  scores every question from whatever ended up saved and upserts stats exactly once per question.
+- **Introduced a `feedbackMode` prop (`'immediate' | 'hidden' | 'always'`) on `QuestionCard`/
+  `OptionRow`**, replacing what was originally sketched as a simple boolean `revealAnswer`. A
+  boolean can't express the exam review screen's actual requirement: a *skipped* question must
+  still show the correct option highlighted (so the student can learn from it), which needs
+  "always reveal, regardless of whether this question was answered" — a case a boolean tied to
+  `answered` can't represent. `'immediate'` is tutor mode's existing behavior (reveal once
+  answered, then lock) — unchanged. `'hidden'` is an in-progress exam (never reveal, stays
+  editable). `'always'` is the exam review screen. `ExplanationPanel` was extended to accept
+  `isCorrect: boolean | null` for the same reason — a skipped question's explanation still shows,
+  framed as "Not answered" rather than correct/incorrect.
+- **Exam review is a single scrollable list of every question (`ExamReview`), not the same
+  one-at-a-time `QuestionRail`-navigated view the in-progress exam and tutor mode use.** Section
+  5.3 literally describes it as "a results/review screen (**list** of all questions...)", distinct
+  wording from the question-by-question screens elsewhere in the same section.
+- **Server-side expiry enforcement, not just a client-side timer.** `saveExamAnswer` recomputes
+  remaining time from `startedAt`/`durationSeconds` server-side on every call (via the same
+  `computeRemainingSeconds` the client's countdown uses) and refuses to apply an answer change —
+  finalizing the exam instead — once the deadline has passed, rather than trusting the browser's
+  own clock/timer to have already stopped accepting input. Consistent with the "never trust the
+  client" pattern already established for `isCorrect` computation in Phase 2.
+- **Found and fixed a real runtime bug via the browser, not typecheck or build**: `ExamReview.tsx`
+  (a Server Component by default — no `'use client'`) rendered `QuestionCard`/`OptionRow`, which
+  attach an `onClick` handler, with an inline `onSelect={() => {}}` no-op. `pnpm build` compiled
+  this without complaint, but Next.js threw `Error: Event handlers cannot be passed to Client
+  Component props` at actual render time — a React Server Components boundary violation that
+  static analysis alone doesn't catch. Fixed by adding `'use client'` to `ExamReview.tsx`, matching
+  the pattern already used by its siblings `PracticeSession`/`ExamSession`. Caught by the new e2e
+  test, not assumed fixed.
+- **Verified the "timed out" path without waiting out a real timer**: rather than sitting through
+  a 15-minute wait (the shortest duration preset) in a test, `tests/e2e/exam-flow.spec.ts`'s
+  timeout test starts a real exam through the UI, then uses the Admin SDK directly (same emulator
+  connection pattern as `scripts/seed-firestore.ts`) to rewrite that session's `startedAt`
+  further into the past than its duration allows, then reloads the page — exercising the exact
+  same client-side expiry detection and server-side finalization a real 15-minute wait would,
+  just reached in seconds.
+- **`playwright.config.ts` pinned to `workers: 1`.** Found empirically while adding the exam e2e
+  tests: with `workers: 2`, a dashboard assertion that passed reliably in isolation started
+  intermittently failing — not a real bug (confirmed by re-running the same test alone, which
+  passed every time). All e2e tests share one `pnpm dev` instance and one emulator suite (there's
+  no per-worker server/emulator provisioning), so parallel workers contend for both under this
+  sandbox's CPU limits. Revisit if/when this is wired into CI with real per-worker isolation.

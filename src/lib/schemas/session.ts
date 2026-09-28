@@ -19,3 +19,9 @@ export const sessionBuilderSchema = z.object({
   questionCount: z.coerce.number().int().min(1).max(100),
 });
 export type SessionBuilderInput = z.infer<typeof sessionBuilderSchema>;
+
+// Section 5.3: "Same flow as 5.2 but... a duration is set at session creation."
+export const examBuilderSchema = sessionBuilderSchema.extend({
+  durationMinutes: z.coerce.number().int().min(5).max(240),
+});
+export type ExamBuilderInput = z.infer<typeof examBuilderSchema>;
