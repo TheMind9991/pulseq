@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { getCurrentProfile } from '@/lib/auth/getServerUser';
 import { upsertUserQuestionStats } from '@/lib/sessions/userQuestionStats';
+import { incrementDailyUsage, todayDateKey } from '@/lib/usage/dailyUsage';
 import type { QuestionDoc, SessionAnswer, SessionDoc } from '@/types';
 
 type SubmitAnswerResult =
@@ -86,6 +87,10 @@ export async function submitAnswer(
     topic: question.topic,
     isCorrect,
   });
+  // Section 7.2: counted here, on the same write path that persists the answer — never a
+  // separate client-triggered call a client could skip. The early-return above for an
+  // already-answered question means this only ever fires once per distinct question.
+  incrementDailyUsage(db, batch, { userId: uid, date: todayDateKey(), questionsAnsweredDelta: 1 });
   await batch.commit();
 
   return {

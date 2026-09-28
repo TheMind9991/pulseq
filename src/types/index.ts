@@ -96,4 +96,17 @@ export interface ErrorReportDoc {
   resolvedAt?: Timestamp | null;
 }
 
+// dailyUsage/{userId}_{yyyy-mm-dd} — Section 7.2. UTC calendar day boundary (see DECISIONS.md).
+// Written only by the trusted server paths that also persist answers (submitAnswer,
+// saveExamAnswer, finalizeExam) — firestore.rules denies every client write outright.
+export interface DailyUsageDoc {
+  userId: string;
+  date: string;
+  questionsAnswered: number;
+  examSeconds: number;
+  updatedAt: Timestamp;
+}
+
 export const DEFAULT_TENANT_ID = 'pulseq-core';
+export const DAILY_QUESTION_CAP = 100;
+export const DAILY_EXAM_SECONDS_CAP = 3600;

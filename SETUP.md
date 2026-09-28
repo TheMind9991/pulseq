@@ -45,7 +45,23 @@ FIREBASE_PRIVATE_KEY=
 systems — including Vercel and most CI providers — store multi-line secrets). **Never commit
 this value or the downloaded JSON file** — `.gitignore` already excludes `.env*`.
 
-## 4. Deploy Firestore indexes and security rules
+## 4. Monetization: AdSense + Paymob (optional — Phase 6)
+
+Both are optional for local dev; leave them unset and the app degrades gracefully (no ads shown,
+`createCheckout` returns a clear "not configured" error instead of crashing).
+
+- **AdSense** (`NEXT_PUBLIC_ADSENSE_CLIENT_ID`, `NEXT_PUBLIC_ADSENSE_SLOT_ID`) — from an AdSense
+  account's Sites and Ads → By ad unit pages. Public/client-side by design (Section 7.1).
+- **Paymob** (`PAYMOB_API_KEY`, `PAYMOB_INTEGRATION_ID`, `PAYMOB_IFRAME_ID`,
+  `PAYMOB_HMAC_SECRET`) — from the Paymob dashboard's Settings → Account Info, Payment
+  Integrations, Developers → iframes, and Webhooks pages respectively. Server-only secrets. Set
+  the webhook URL in the Paymob dashboard to `https://<your-domain>/api/payments/webhook`. See
+  `DECISIONS.md` for why Paymob was chosen over Fawaterak, and for the honest caveat that the
+  checkout/HMAC implementation follows Paymob's documented API shape but hasn't been exercised
+  against a live sandbox in this build (no real credentials were available) — verify against a
+  real test payment before relying on it in production.
+
+## 5. Deploy Firestore indexes and security rules
 
 Requires the Firebase CLI (`firebase-tools`, already a devDependency — run via `pnpm exec
 firebase` or install globally):
@@ -56,7 +72,7 @@ pnpm exec firebase use --add   # select the project, give it an alias e.g. "defa
 pnpm exec firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 
-## 5. Deploy Cloud Functions
+## 6. Deploy Cloud Functions
 
 ```bash
 cd functions
@@ -66,7 +82,7 @@ cd ..
 pnpm exec firebase deploy --only functions
 ```
 
-## 6. Run locally
+## 7. Run locally
 
 ```bash
 pnpm install
@@ -78,7 +94,7 @@ Visit `http://localhost:3000`. Sign up, complete onboarding, and you should land
 Console) to confirm `setCustomClaims` ran and set the `role`/`tenantId` custom claim after
 onboarding.
 
-## 7. Testing
+## 8. Testing
 
 - `pnpm test` — unit tests, no Firebase project needed.
 - `pnpm test:rules` — Firestore security rules tests. Runs entirely against the **local Firestore

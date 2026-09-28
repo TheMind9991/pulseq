@@ -470,3 +470,92 @@ call made directly from a spec file, like `adminAuth.ts` or `exam-flow.spec.ts`'
 fast-forward — does not); and `practice-loop.spec.ts`/`exam-flow.spec.ts` need `pnpm seed` run
 against the emulator first (no published questions -> "Start" never navigates anywhere, which
 looks identical to a hung UI from the outside, not an obviously-empty-state error).
+
+## Phase 6 — Monetization: ads, daily caps, and the paid upgrade
+
+- **UTC calendar day for `dailyUsage`**, per Section 7.2's explicit either/or. Simpler than an
+  Africa/Cairo-local boundary (no DST edge cases, no timezone-conversion code at all — just
+  `date.toISOString().slice(0, 10)`), at the acceptable cost of a student near midnight Cairo time
+  seeing their cap reset a couple of hours early or late. `todayDateKey`/`dailyUsageDocId` live in
+  their own dependency-free `src/lib/usage/dateKey.ts` rather than inside the `'server-only'`
+  `dailyUsage.ts` — a `'server-only'`-guarded module throws when imported from Vitest (it's not
+  running inside Next.js's server compilation, so the guard's check always fails), which is
+  exactly why `selectSessionQuestions.ts`/`userQuestionStats.ts` (Phase 2/3) were never unit
+  tested directly either; splitting out the pure date-key logic is what makes it testable at all
+  without weakening the guard on the Firestore-touching half.
+- **`examSeconds` is booked once, at exam finalization, not incrementally per `saveExamAnswer`
+  call.** The alternative (accumulating a delta on every answer save) would need each call to know
+  how much wall-clock time passed since the *previous* save, which `saveExamAnswer`'s current
+  shape doesn't track and would complicate for a mode where answers are freely revised. Booking
+  the actual elapsed time (capped at the session's allotted duration) once, exactly when
+  `finalizeExam` runs — guarded by both its callers' `completedAt === null` check, so it can never
+  double-fire for one session — gets the same outcome (a student's total exam-mode time that day)
+  with no risk of double-counting. This also directly satisfies the done-when's "an exam already
+  in progress when the cap is crossed is allowed to finish": the cap is only ever checked at
+  `startExamSession`, never mid-session, so there's nothing to interrupt regardless of when
+  `examSeconds` actually gets written.
+- **`questionsAnswered` in exam mode counts only the first save per question, not every revision.**
+  Tutor mode's `submitAnswer` is naturally exactly-once (an answered question is locked, a
+  resubmit returns the stored result without re-writing anything). Exam answers are freely
+  overwritable by design (Section 5.3), so counting every `saveExamAnswer` call would let a
+  student who changes their mind on one question several times inflate their own daily count —
+  not a security concern, just wrong. Fixed by checking whether the question was previously
+  unanswered before incrementing, mirroring tutor mode's "distinct question" semantics.
+- **Paymob chosen over Fawaterak** after comparing both against the product PRD's required
+  methods (Fawry, Vodafone Cash, InstaPay, cards): both support the card/wallet/Fawry set, but
+  Paymob has the broadest documented wallet coverage, a public "Subscriptions"/tokenization
+  product for recurring billing, and (per a payment-gateway comparison surveyed during this
+  build) is the more heavily documented option for Egypt specifically, which matters given no
+  real sandbox credentials exist to test against here. Neither provider's docs confirmed InstaPay
+  support directly in what was checked; that's a gap to close before launch, not a blocker for
+  this phase's build.
+- **No silent card-token auto-renewal — each premium month is a fresh manual payment.** The
+  engineering spec explicitly allows this ("some Egyptian payment aggregators support tokenized
+  recurring charges, others require a monthly manual re-charge flow; confirm which at build time").
+  Paymob's tokenization product exists, but without live sandbox access its exact request/response
+  shape couldn't be verified — and guessing at an unverified API shape for something that moves
+  real money is exactly the kind of false confidence this build avoids elsewhere too (e.g. the
+  Paymob HMAC field order below). The shipped model instead: `webhookHandler`
+  (`app/api/payments/webhook/route.ts`) sets `isPremium: true` + `premiumExpiresAt` (+30 days) on
+  any successful, non-pending transaction — a renewal payment is just another call to the same
+  route, extending `premiumExpiresAt` again — and a new scheduled Cloud Function
+  (`functions/src/payments/expirePremium.ts`, `onSchedule('every 24 hours')`) flips `isPremium`
+  back to `false` for anyone whose `premiumExpiresAt` has passed without one. This fully satisfies
+  the phase's actual done-when (a test payment sets `isPremium: true` immediately; caps/ads clear
+  immediately; expiry flips it back) without shipping unverified token-charging code. `/settings`'s
+  "Cancel" button is the honest complement: since nothing auto-recharges, "cancel" just means
+  "turn unlimited off now instead of waiting out the clock" — `cancelPremium` sets `isPremium:
+  false` immediately.
+- **`createCheckout` is a Server Action, `webhookHandler` is a Next.js Route Handler
+  (`app/api/payments/webhook/route.ts`), not Cloud Functions** — despite the spec naming
+  `createCheckout.ts`/`webhookHandler.ts` as Cloud Functions. Same reasoning as Phase 5's bulk
+  upload: every other mutation in this codebase is a Server Action, and `/api/auth/session/
+  route.ts` (Phase 1) already established Route Handlers as this app's pattern for an endpoint an
+  external service calls directly (a webhook has to be a real HTTP URL either way — a Cloud
+  Function's HTTP trigger and a Next.js Route Handler both work, and the latter keeps a second
+  HTTP surface out of the deploy). Cloud Functions stay reserved for genuine Firestore triggers
+  and the one genuine scheduled job (`expirePremium`).
+- **The Paymob "Transaction Processed Callback" HMAC field order/algorithm
+  (`src/lib/payments/paymobHmac.ts`) is implemented from Paymob's long-documented public
+  convention, not verified against a live sandbox** — no real Paymob credentials were available in
+  this build. The field order, concatenation (no separator), and HMAC-SHA512 algorithm match what
+  every community Paymob integration uses, but this is exactly the kind of detail worth
+  double-checking against Paymob's current dashboard docs before a real payment ever hits this
+  code path. Because it's a pure function with no Firebase dependency, it's unit-tested via the
+  round-trip property instead (a signature computed with the right secret verifies; any tamper —
+  wrong secret, a changed field, a flipped `success` flag — fails) rather than asserting a
+  hard-coded digest I can't independently confirm is correct offline.
+- **e2e ad-network verification runs isolated from the main suite, not bundled into it.** The
+  first attempt set a fake `NEXT_PUBLIC_ADSENSE_CLIENT_ID` for the *entire* Playwright run so
+  `AdSlot` would genuinely inject the AdSense script tag; every dashboard visit across every spec
+  file then made a real network call to Google's ad servers, and `admin-review-queue.spec.ts`
+  started timing out on an unrelated "Sign out" click purely from that added latency/contention —
+  the same class of external-dependency flakiness `playwright.config.ts`'s `workers: 1` comment
+  already documents for this sandbox. Re-run without the fake credentials: all 9 tests, including
+  every `monetization.spec.ts` test, passed reliably — `AdSlot`'s own `page.route()`-based abort of
+  the ad-script request already proves graceful degradation deterministically, without needing a
+  real external call. The full regression suite runs with no AdSense credentials configured (the
+  same as a real unconfigured-ads dev/CI environment); the "script blocked mid-flight while
+  actually configured" variant was verified once, separately, with fake credentials plus the same
+  route-abort, specifically to avoid reintroducing that shared-server network dependency into
+  every other spec.

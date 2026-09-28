@@ -5,6 +5,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { TopicAccuracyTable, type TopicAccuracyRow } from '@/components/dashboard/TopicAccuracyTable';
 import { SessionHistoryTable, type SessionHistoryRow } from '@/components/dashboard/SessionHistoryTable';
 import { Button } from '@/components/ui/Button';
+import { AdSlot } from '@/components/ads/AdSlot';
 import type { SessionDoc, UserTopicStatsDoc } from '@/types';
 
 // Section 5.4: server-rendered read of userTopicStats (sorted by accuracy ascending, so weak
@@ -78,6 +79,10 @@ export default async function DashboardPage() {
             <Button>Practise weak topics</Button>
           </Link>
         )}
+      </div>
+
+      <div className="mt-6">
+        <AdSlot />
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">

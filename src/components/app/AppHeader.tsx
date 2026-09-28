@@ -3,8 +3,8 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { SignOutButton } from '@/components/app/SignOutButton';
 
 // Nav links are intentionally limited to routes that exist today (Phase 1: dashboard; Phase 2:
-// + practice; Phase 4: + exams). Bookmarks and settings are added as their own phases land
-// (Section 10) rather than linking ahead to pages that don't exist yet.
+// + practice; Phase 4: + exams; Phase 6: + settings). Bookmarks are added if/when their own
+// phase lands (Section 10) rather than linking ahead to a page that doesn't exist yet.
 export function AppHeader({ displayName, showAdminLink }: { displayName: string; showAdminLink: boolean }) {
   return (
     <header className="flex h-14 items-center justify-between border-b border-subtle bg-surface px-6">
@@ -30,6 +30,9 @@ export function AppHeader({ displayName, showAdminLink }: { displayName: string;
         </nav>
       </div>
       <div className="flex items-center gap-4">
+        <Link href="/settings" className="text-sm text-secondary hover:text-primary">
+          Settings
+        </Link>
         <span className="text-sm text-secondary">{displayName}</span>
         <ThemeToggle />
         <SignOutButton />

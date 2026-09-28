@@ -9,6 +9,8 @@ import { useSessionFilters } from '@/lib/sessions/useSessionFilters';
 import { SessionFilterFields } from '@/components/quiz/SessionFilterFields';
 import { Chip } from '@/components/ui/Chip';
 import { Button } from '@/components/ui/Button';
+import { CapReachedNotice } from '@/components/app/CapReachedNotice';
+import { AdSlot } from '@/components/ads/AdSlot';
 
 export default function ExamBuilderPage() {
   const router = useRouter();
@@ -16,10 +18,12 @@ export default function ExamBuilderPage() {
   const [questionCount, setQuestionCount] = useState(DEFAULT_QUESTION_COUNT);
   const [durationMinutes, setDurationMinutes] = useState(DEFAULT_EXAM_DURATION_MINUTES);
   const [error, setError] = useState<string | null>(null);
+  const [capReached, setCapReached] = useState<'questions' | 'exam_time' | null>(null);
   const [starting, setStarting] = useState(false);
 
   async function onStart() {
     setError(null);
+    setCapReached(null);
     setStarting(true);
     const result = await startExamSession({
       subjects: filters.subjects.length > 0 ? filters.subjects : undefined,
@@ -29,6 +33,11 @@ export default function ExamBuilderPage() {
       questionCount,
       durationMinutes,
     });
+    if ('capReached' in result) {
+      setCapReached(result.capReached);
+      setStarting(false);
+      return;
+    }
     if ('error' in result) {
       setError(result.error);
       setStarting(false);
@@ -44,7 +53,12 @@ export default function ExamBuilderPage() {
         No feedback until you submit or time runs out — mimics the real exam format.
       </p>
 
+      <div className="mt-6">
+        <AdSlot />
+      </div>
+
       <div className="mt-8 space-y-6">
+        {capReached && <CapReachedNotice cap={capReached} />}
         <SessionFilterFields {...filters} />
 
         <div>
@@ -77,7 +91,7 @@ export default function ExamBuilderPage() {
 
         {error && <p className="text-sm text-danger">{error}</p>}
 
-        <Button onClick={onStart} disabled={starting}>
+        <Button onClick={onStart} disabled={starting || capReached !== null}>
           {starting ? 'Starting…' : 'Start exam'}
         </Button>
       </div>

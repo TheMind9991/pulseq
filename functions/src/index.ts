@@ -6,3 +6,4 @@ if (admin.apps.length === 0) {
 
 export { setCustomClaims } from './auth/setCustomClaims';
 export { recomputeTopicStats } from './analytics/recomputeTopicStats';
+export { expirePremium } from './payments/expirePremium';

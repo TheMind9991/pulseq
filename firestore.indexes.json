@@ -36,6 +36,14 @@
       ]
     },
     {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isPremium", "order": "ASCENDING" },
+        { "fieldPath": "premiumExpiresAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "errorReports",
       "queryScope": "COLLECTION",
       "fields": [

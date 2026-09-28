@@ -33,8 +33,8 @@ service cloud.firestore {
 
     // --- users/{userId} --------------------------------------------------
     // A user may read/write only their own doc, and may never set role, isPremium or
-    // premiumExpiresAt themselves — those are Cloud-Function-only writes (Admin SDK,
-    // which bypasses these rules entirely).
+    // premiumExpiresAt themselves — those are Admin-SDK-only writes (the setCustomClaims
+    // trigger and the payment webhook route, both of which bypass these rules entirely).
     match /users/{userId} {
       allow read: if isOwner(userId);
 

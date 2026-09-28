@@ -5,9 +5,10 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { getCurrentProfile } from '@/lib/auth/getServerUser';
 import { sessionBuilderSchema, type SessionBuilderInput } from '@/lib/schemas/session';
 import { selectSessionQuestions } from '@/lib/sessions/selectQuestions';
+import { checkDailyCap } from '@/lib/usage/dailyUsage';
 import type { SessionFilters } from '@/types';
 
-type StartSessionResult = { sessionId: string } | { error: string };
+type StartSessionResult = { sessionId: string } | { error: string } | { capReached: 'questions' | 'exam_time' };
 
 // Section 5.2 steps 1-2: server action that turns the builder's filters into a fixed
 // questionIds order and creates the sessions doc. Question selection itself is shared with
@@ -22,6 +23,11 @@ export async function startPracticeSession(input: SessionBuilderInput): Promise<
 
   const { uid, profile } = current;
   const db = getAdminDb();
+
+  // Section 7.3: hard stop before creating a new session, never mid-session — isPremium and
+  // today's usage are both read server-side, never trusted from the client.
+  const capCheck = await checkDailyCap(db, uid, profile.isPremium, 'tutor');
+  if (capCheck.blocked) return { capReached: capCheck.cap };
 
   const selection = await selectSessionQuestions(db, {
     tenantId: profile.tenantId,

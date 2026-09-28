@@ -5,6 +5,7 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { getCurrentProfile } from '@/lib/auth/getServerUser';
 import { upsertUserQuestionStats } from '@/lib/sessions/userQuestionStats';
 import { computeRemainingSeconds } from '@/lib/sessions/examTiming';
+import { incrementDailyUsage, todayDateKey } from '@/lib/usage/dailyUsage';
 import type { QuestionDoc, SessionAnswer, SessionDoc } from '@/types';
 
 type SaveExamAnswerResult = { status: 'saved' } | { status: 'expired' } | { error: string };
@@ -66,6 +67,16 @@ async function finalizeExam(
     completedAt: FieldValue.serverTimestamp(),
     score: { correct: correctCount, total: session.questionIds.length },
   });
+
+  // Section 7.2: examSeconds is booked once, here, at finalization — not incrementally per
+  // saveExamAnswer call — using actual elapsed wall-clock time capped at the session's allotted
+  // duration (an early submission books less than the full budget; this function only ever runs
+  // once per session, guarded by both callers' completedAt === null check, so there's no
+  // double-counting to worry about).
+  const elapsedSeconds = Math.floor((Date.now() - session.startedAt.toMillis()) / 1000);
+  const examSecondsDelta = Math.max(0, Math.min(session.durationSeconds ?? 0, elapsedSeconds));
+  incrementDailyUsage(db, batch, { userId: uid, date: todayDateKey(), examSecondsDelta });
+
   await batch.commit();
 
   return { correct: correctCount, total: session.questionIds.length };
@@ -107,7 +118,14 @@ export async function saveExamAnswer(
     return { status: 'expired' };
   }
 
-  await sessionRef.update({
+  // Section 7.2: questionsAnswered counts distinct questions answered, in either mode — only on
+  // the first save for this question, not on every revision (exam answers are freely
+  // overwritable, unlike tutor mode's locked-in submitAnswer), so changing your mind doesn't
+  // inflate the count.
+  const isNewAnswer = session.answers[questionId]?.selectedOptionId == null;
+
+  const batch = db.batch();
+  batch.update(sessionRef, {
     [`answers.${questionId}`]: {
       selectedOptionId,
       isCorrect: null,
@@ -115,6 +133,10 @@ export async function saveExamAnswer(
       timeSpentSeconds: 0,
     },
   });
+  if (isNewAnswer) {
+    incrementDailyUsage(db, batch, { userId: uid, date: todayDateKey(), questionsAnsweredDelta: 1 });
+  }
+  await batch.commit();
 
   return { status: 'saved' };
 }

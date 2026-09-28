@@ -8,6 +8,8 @@ import { useSessionFilters } from '@/lib/sessions/useSessionFilters';
 import { SessionFilterFields } from '@/components/quiz/SessionFilterFields';
 import { Chip } from '@/components/ui/Chip';
 import { Button } from '@/components/ui/Button';
+import { CapReachedNotice } from '@/components/app/CapReachedNotice';
+import { AdSlot } from '@/components/ads/AdSlot';
 
 export default function PracticeBuilderPage() {
   const router = useRouter();
@@ -21,10 +23,12 @@ export default function PracticeBuilderPage() {
   const filters = useSessionFilters({ topics: initialTopics });
   const [questionCount, setQuestionCount] = useState(DEFAULT_QUESTION_COUNT);
   const [error, setError] = useState<string | null>(null);
+  const [capReached, setCapReached] = useState<'questions' | 'exam_time' | null>(null);
   const [starting, setStarting] = useState(false);
 
   async function onStart() {
     setError(null);
+    setCapReached(null);
     setStarting(true);
     const result = await startPracticeSession({
       subjects: filters.subjects.length > 0 ? filters.subjects : undefined,
@@ -33,6 +37,11 @@ export default function PracticeBuilderPage() {
       status: filters.status,
       questionCount,
     });
+    if ('capReached' in result) {
+      setCapReached(result.capReached);
+      setStarting(false);
+      return;
+    }
     if ('error' in result) {
       setError(result.error);
       setStarting(false);
@@ -46,7 +55,12 @@ export default function PracticeBuilderPage() {
       <h1 className="text-2xl font-semibold text-primary">Start a practice session</h1>
       <p className="mt-1 text-secondary">Untimed tutor mode — see the explanation after every answer.</p>
 
+      <div className="mt-6">
+        <AdSlot />
+      </div>
+
       <div className="mt-8 space-y-6">
+        {capReached && <CapReachedNotice cap={capReached} />}
         <SessionFilterFields {...filters} />
 
         <div>
@@ -65,7 +79,7 @@ export default function PracticeBuilderPage() {
 
         {error && <p className="text-sm text-danger">{error}</p>}
 
-        <Button onClick={onStart} disabled={starting}>
+        <Button onClick={onStart} disabled={starting || capReached !== null}>
           {starting ? 'Starting…' : 'Start'}
         </Button>
       </div>
