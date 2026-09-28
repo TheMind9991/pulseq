@@ -175,3 +175,71 @@ than stall. Newest entries at the bottom of each phase's section.
   until Phase 3 builds the real dashboard (currently an intentional empty shell). Not yet wired
   into CI — would need the emulators started as a CI step first; tracked as a follow-up, same
   status as the `pnpm test:rules` gap noted for CI in Phase 1.
+
+## Phase 3 — Analytics & dashboard
+
+- **`computeTopicAccuracy.ts` duplicated into `functions/src/analytics/recomputeTopicStats.ts`**
+  rather than imported, same reasoning as Phase 1's `setCustomClaims.ts`-adjacent notes:
+  `functions/` is a separate TypeScript package/compilation unit with no access to `src/`. It's a
+  ~10-line pure function: duplication is cheaper and clearer than setting up a shared workspace
+  package for it. Comments in both files point at each other; keep them in sync by hand.
+  `questionsAnswered` counts distinct questions attempted at least once; `accuracy` is
+  correct/seen across *all* attempts (not just first-attempt) — both the Cloud Function and the
+  unit-tested pure logic agree on this.
+- **"Sessions" query uses `orderBy('completedAt', 'desc')`, exactly as Section 3's own index list
+  specifies** (`sessions: (userId, completedAt desc) — for session history`), not `startedAt` as
+  I first reached for over a null-sorting concern (an in-progress session's `completedAt: null`
+  sorts after all timestamps in descending order). Firestore's actual behavior here works in this
+  app's favor: completed sessions naturally rank first, and an incomplete session only appears in
+  the 5-row result if the student doesn't have 5 completed ones yet — at which point
+  `SessionHistoryTable` renders it with a "Resume" link instead of a score. No new index needed;
+  the Phase 1 index already covers this exact query.
+- **Recharts pinned to v3** (`^3.2.1`), not v2 — `pnpm install` flagged v2 as deprecated
+  (unmaintained) the moment I added it, and there's no existing v2 code to migrate from since this
+  chart is new. Section 1 names "Recharts" without a version; v3 is the conventional choice for a
+  fresh build.
+- **`TopicAccuracyTable` is a Recharts horizontal bar chart, styled per the dataviz skill's
+  guidance** (loaded before writing it, per the skill's own trigger and the engineering spec's
+  "reference the app's own dataviz conventions if available" instruction): accuracy-by-topic is a
+  **status** encoding (strong/watch/weak, a fixed reserved scale — not the categorical theme), so
+  colors reuse the existing `--color-success/warning/danger` tokens, are always paired with a
+  legend + direct `%` label (status color is never the only signal), and the bar uses Recharts'
+  `background` prop for the "unfilled track" rather than a second series. Also ships a visually-
+  hidden (`sr-only`) real `<table>` mirroring the chart data, satisfying the skill's "a table view
+  exists" accessibility requirement without conflicting with the spec's explicit choice of
+  Recharts for the visual.
+- **Dashboard summary stats are "Questions answered", "Overall accuracy", "Weakest topic"** —
+  Section 5.4 doesn't enumerate which stats StatCard should show. Chose these three because they
+  come free from the already-fetched `userTopicStats` docs (no extra query, matching Section 3.5's
+  "cheap single-document reads" design intent) and the weakest-topic card usefully previews what
+  "Practise weak topics" is about to do. A precise all-time "sessions completed" count would need
+  a separate aggregate query and was left out for the same reason.
+- **"Practise weak topics" pre-fills every topic with `status: 'weak'`, falling back to the single
+  lowest-accuracy topic if none are strictly 'weak' yet** — Section 5.4 says "topic(s)" (plural),
+  implying possibly-multiple, but doesn't define the exact selection rule. The fallback exists so
+  the button still does something useful for a student who's only ever gotten to "watch"/"strong"
+  topics. Implemented via repeated `?topic=` query params read by `/practice`'s existing client
+  state (`useSearchParams`), not a server round-trip.
+- **Found and fixed a real runtime bug via the emulator, not just typecheck**: the first draft of
+  `recomputeTopicStats.ts` used `import * as admin from 'firebase-admin'` and called
+  `admin.firestore.FieldValue.serverTimestamp()` (the classic namespaced-API pattern). This
+  type-checked and built cleanly but threw `TypeError: Cannot read properties of undefined
+  (reading 'serverTimestamp')` at runtime in the Functions emulator — confirmed via emulator logs,
+  not assumed — silently breaking every `userTopicStats` write and leaving the dashboard stuck at
+  zero. Fixed by switching to the modular import (`import { FieldValue } from
+  'firebase-admin/firestore'`), matching the pattern already used correctly elsewhere
+  (`src/lib/firebase/admin.ts`, the practice server actions). Also switched
+  `setCustomClaims.ts`'s `admin.auth()` calls to the modular `getAuth()` for consistency, even
+  though that one wasn't actually broken (it doesn't touch `FieldValue`).
+- **Verified the full Cloud Function trigger chain end-to-end**, not just unit-tested the pure
+  logic: extended `tests/e2e/practice-loop.spec.ts` to continue past session completion into the
+  dashboard, running the Firestore *and* Functions emulators together (`firebase emulators:start
+  --only auth,firestore,storage,functions`, functions pre-built via `cd functions && pnpm build`
+  first). This is what actually caught the bug above — `tsc`/`pnpm build` on the Next.js app alone
+  never touches the Functions package's runtime behavior. Because `recomputeTopicStats` runs
+  asynchronously off the same write that redirects the browser to `/dashboard`, and the dashboard
+  is server-rendered with no client-side re-fetch, the test polls with repeated `page.goto`
+  reloads (`expect.poll`) rather than a single navigation — confirmed necessary in practice: right
+  after a cold emulator restart, the very first trigger dispatch was slow enough that a single
+  immediate read raced it, even though the function's own execution time was consistently
+  under 500ms once warm.

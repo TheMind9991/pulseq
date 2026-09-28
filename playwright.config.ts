@@ -1,9 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Assumes the Firebase emulators (Firestore + Auth) are already running — see SETUP.md's
-// "Emulator-only local dev" section — and that `.env.local` has NEXT_PUBLIC_USE_FIREBASE_EMULATORS
-// set. Not wired into CI yet (would need the emulators started as part of the job); tracked as a
-// follow-up rather than blocking Phase 2 on it — see DECISIONS.md.
+// Assumes the Firebase emulators (Auth + Firestore + Storage + Functions, the last built via
+// `cd functions && pnpm build` first) are already running — see SETUP.md's "Emulator-only local
+// dev" section — and that `.env.local` has NEXT_PUBLIC_USE_FIREBASE_EMULATORS set. Not wired into
+// CI yet (would need the emulators started as part of the job); tracked as a follow-up rather
+// than blocking on it — see DECISIONS.md.
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,

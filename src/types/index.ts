@@ -2,6 +2,7 @@ import type { Timestamp } from 'firebase/firestore';
 import type { Locale, UserRole } from '@/lib/schemas/user';
 import type { QuestionContent } from '@/lib/schemas/question';
 import type { SessionMode, SessionStatusFilter } from '@/lib/schemas/session';
+import type { TopicStatus } from '@/lib/analytics/computeTopicAccuracy';
 
 // users/{userId} — engineering spec Section 3.1.
 export interface UserDoc {
@@ -68,6 +69,17 @@ export interface UserQuestionStatsDoc {
   timesCorrect: number;
   lastSeenAt: Timestamp;
   bookmarked: boolean;
+}
+
+// userTopicStats/{userId}_{topic} — Section 3.5.
+export interface UserTopicStatsDoc {
+  userId: string;
+  subject: string;
+  topic: string;
+  questionsAnswered: number;
+  accuracy: number;
+  status: TopicStatus;
+  updatedAt: Timestamp;
 }
 
 export const DEFAULT_TENANT_ID = 'pulseq-core';

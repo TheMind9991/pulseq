@@ -8,11 +8,11 @@ full requirements. `DECISIONS.md` logs judgment calls made where the spec left a
 
 ## Status
 
-Phases 1-2 of the 8-phase build plan (engineering spec Section 10) are in place: auth,
-onboarding, design tokens, Firestore security rules, and the tutor-mode practice loop (session
-builder, question screen, scoring, `userQuestionStats`). Subsequent phases (analytics/dashboard,
-timed exams, admin/content pipeline, monetization, marketing site, i18n/white-label) are not yet
-built.
+Phases 1-3 of the 8-phase build plan (engineering spec Section 10) are in place: auth,
+onboarding, design tokens, Firestore security rules, the tutor-mode practice loop, and the
+analytics dashboard (`userTopicStats`, the `recomputeTopicStats` Cloud Function, accuracy-by-topic
+chart, session history, "Practise weak topics"). Subsequent phases (timed exams, admin/content
+pipeline, monetization, marketing site, i18n/white-label) are not yet built.
 
 ## Tech stack
 

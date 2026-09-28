@@ -155,3 +155,31 @@ describe('dailyUsage/{docId}', () => {
     );
   });
 });
+
+describe('userTopicStats/{docId}', () => {
+  const docId = `${STUDENT_A.uid}_Cardiology`;
+
+  it('lets the owning user read their own doc but not another user\'s, and never write it', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .firestore()
+        .collection('userTopicStats')
+        .doc(docId)
+        .set({
+          userId: STUDENT_A.uid,
+          subject: 'Internal Medicine',
+          topic: 'Cardiology',
+          questionsAnswered: 4,
+          accuracy: 0.75,
+          status: 'strong',
+        });
+    });
+
+    const asStudentA = testEnv.authenticatedContext(STUDENT_A.uid).firestore();
+    await assertSucceeds(asStudentA.collection('userTopicStats').doc(docId).get());
+    await assertFails(asStudentA.collection('userTopicStats').doc(docId).update({ accuracy: 1 }));
+
+    const asStudentB = testEnv.authenticatedContext(STUDENT_B.uid).firestore();
+    await assertFails(asStudentB.collection('userTopicStats').doc(docId).get());
+  });
+});

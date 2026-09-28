@@ -1,5 +1,5 @@
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
-import * as admin from 'firebase-admin';
+import { getAuth } from 'firebase-admin/auth';
 
 const DEFAULT_ROLE = 'student';
 const DEFAULT_TENANT_ID = 'pulseq-core';
@@ -28,11 +28,11 @@ export const setCustomClaims = onDocumentWritten('users/{userId}', async (event)
     return;
   }
 
-  const userRecord = await admin.auth().getUser(userId);
+  const userRecord = await getAuth().getUser(userId);
   const currentClaims = userRecord.customClaims ?? {};
   if (currentClaims.role === data.role && currentClaims.tenantId === data.tenantId) {
     return; // already in sync — avoid a pointless token-invalidating claims write
   }
 
-  await admin.auth().setCustomUserClaims(userId, { role: data.role, tenantId: data.tenantId });
+  await getAuth().setCustomUserClaims(userId, { role: data.role, tenantId: data.tenantId });
 });

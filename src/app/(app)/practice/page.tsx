@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { startPracticeSession } from '@/app/(app)/practice/actions';
 import {
   DEFAULT_QUESTION_COUNT,
@@ -46,8 +46,24 @@ function toggle<T>(list: T[], value: T): T[] {
 
 export default function PracticeBuilderPage() {
   const router = useRouter();
-  const [subjects, setSubjects] = useState<string[]>([]);
-  const [topics, setTopics] = useState<string[]>([]);
+  const searchParams = useSearchParams();
+
+  // Pre-fills from the dashboard's "Practise weak topics" button (Section 5.4), e.g.
+  // /practice?topic=Cardiology&topic=Endocrine. Subjects are derived from the topics so the
+  // subject chips reflect the selection too, rather than leaving them unset.
+  const initialTopics = useMemo(() => searchParams.getAll('topic'), [searchParams]);
+  const initialSubjects = useMemo(() => {
+    const subjectSet = new Set<string>();
+    for (const topic of initialTopics) {
+      for (const [subject, topicsForSubject] of Object.entries(SUBJECT_TOPICS)) {
+        if ((topicsForSubject as readonly string[]).includes(topic)) subjectSet.add(subject);
+      }
+    }
+    return Array.from(subjectSet);
+  }, [initialTopics]);
+
+  const [subjects, setSubjects] = useState<string[]>(initialSubjects);
+  const [topics, setTopics] = useState<string[]>(initialTopics);
   const [difficulty, setDifficulty] = useState<(1 | 2 | 3)[]>([]);
   const [status, setStatus] = useState<StatusFilter>(undefined);
   const [questionCount, setQuestionCount] = useState(DEFAULT_QUESTION_COUNT);

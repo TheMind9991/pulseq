@@ -84,21 +84,32 @@ onboarding.
 - `pnpm test:rules` — Firestore security rules tests. Runs entirely against the **local Firestore
   emulator** (no real project needed), but requires Java (the emulator's runtime) to be
   installed.
-- `pnpm test:e2e` — Playwright e2e tests (not yet added as of Phase 1).
+- `pnpm test:e2e` — Playwright e2e tests. Needs the Firebase emulators running (below), and
+  needs `functions/` built first (`cd functions && pnpm build`) if the test exercises anything
+  that depends on a Cloud Function trigger (`recomputeTopicStats` — the dashboard's topic
+  accuracy — currently does).
 
 ## Emulator-only local dev (no Firebase project needed)
 
-Useful for trying the app out, or for running the practice loop end-to-end, without setting up
-any real Firebase project or credentials:
+Useful for trying the app out, or for running the practice loop and dashboard end-to-end,
+without setting up any real Firebase project or credentials:
 
 ```bash
-# terminal 1 — starts Firestore + Auth + Storage emulators
-pnpm exec firebase emulators:start
+# once, and again after any functions/src change — the emulator runs the compiled output
+cd functions && pnpm install && pnpm build && cd ..
+
+# terminal 1 — starts Auth + Firestore + Storage + Functions emulators
+pnpm exec firebase emulators:start --only auth,firestore,storage,functions --project demo-pulseq
 
 # terminal 2 — seed dev questions into the emulator, then run the app against it
 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_PROJECT_ID=demo-pulseq pnpm seed
 pnpm dev
 ```
+
+Leave out `,functions` from `--only` (and skip the `functions` build) if you don't need
+`setCustomClaims` or `recomputeTopicStats` to actually run — auth/onboarding and the practice
+loop's core answer-submission path work fine without it; only the role custom claim and the
+dashboard's per-topic accuracy depend on those two functions.
 
 With `.env.local` set as shown commented-out in `.env.example` (`NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true`
 plus the placeholder `NEXT_PUBLIC_FIREBASE_API_KEY`/`NEXT_PUBLIC_FIREBASE_PROJECT_ID` and the two
