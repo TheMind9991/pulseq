@@ -1,0 +1,101 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helpers -------------------------------------------------------
+    // Role and tenant are ALWAYS read from the custom claim, never from a Firestore
+    // field. This is the direct replacement for the "God Mode" client-trusted role
+    // injection flagged in the product PRD (Section 6 / 3.1 of the engineering spec).
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function authRole() {
+      return isSignedIn() ? request.auth.token.role : null;
+    }
+
+    function authTenantId() {
+      return isSignedIn() ? request.auth.token.tenantId : null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isEditorOrAdmin() {
+      return authRole() == 'editor' || authRole() == 'admin';
+    }
+
+    function isSameTenant(tenantId) {
+      return authTenantId() == tenantId;
+    }
+
+    // --- users/{userId} --------------------------------------------------
+    // A user may read/write only their own doc, and may never set role, isPremium or
+    // premiumExpiresAt themselves — those are Cloud-Function-only writes (Admin SDK,
+    // which bypasses these rules entirely).
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+
+      allow create: if isOwner(userId)
+        && !('role' in request.resource.data)
+        && !('isPremium' in request.resource.data)
+        && !('premiumExpiresAt' in request.resource.data);
+
+      allow update: if isOwner(userId)
+        && request.resource.data.get('role', null) == resource.data.get('role', null)
+        && request.resource.data.get('isPremium', null) == resource.data.get('isPremium', null)
+        && request.resource.data.get('premiumExpiresAt', null) == resource.data.get('premiumExpiresAt', null);
+    }
+
+    // --- questions/{questionId} -------------------------------------------
+    // Students may read only published questions within their own tenant. Editors/admins
+    // may read and write every status within their own tenant.
+    match /questions/{questionId} {
+      allow read: if isSignedIn() && isSameTenant(resource.data.tenantId)
+        && (resource.data.status == 'published' || isEditorOrAdmin());
+
+      allow write: if isEditorOrAdmin() && isSameTenant(request.resource.data.tenantId);
+    }
+
+    // --- sessions/{sessionId} ---------------------------------------------
+    match /sessions/{sessionId} {
+      allow read, write: if isSignedIn()
+        && (resource == null ? request.resource.data.userId : resource.data.userId) == request.auth.uid;
+    }
+
+    // --- userQuestionStats/{docId} -----------------------------------------
+    match /userQuestionStats/{docId} {
+      allow read, write: if isSignedIn()
+        && (resource == null ? request.resource.data.userId : resource.data.userId) == request.auth.uid;
+    }
+
+    // --- userTopicStats/{docId} ---------------------------------------------
+    // Written only by the recomputeTopicStats Cloud Function (Admin SDK); readable by owner.
+    match /userTopicStats/{docId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // --- dailyUsage/{docId} -------------------------------------------------
+    // Read-only for the owning user (so the UI can show "42/100 today"); all writes
+    // happen server-side through the answer-submission path (Section 7.2), never directly.
+    match /dailyUsage/{docId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // --- errorReports/{reportId} ---------------------------------------------
+    match /errorReports/{reportId} {
+      allow create: if isSignedIn() && request.resource.data.reportedByUserId == request.auth.uid;
+      allow read, update: if isEditorOrAdmin();
+    }
+
+    // --- tenants/{tenantId} (white-label, Phase 3+) ---------------------------
+    match /tenants/{tenantId} {
+      allow read: if isSignedIn() && isSameTenant(tenantId);
+      allow write: if false; // Cloud-Function/admin-console-only in later phases.
+    }
+  }
+}
