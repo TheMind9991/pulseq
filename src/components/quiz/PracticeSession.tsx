@@ -100,6 +100,7 @@ export function PracticeSession({
           </div>
         )}
         <QuestionCard
+          questionId={currentQuestion.id}
           stem={currentQuestion.stem}
           options={currentQuestion.options}
           correctOptionId={currentQuestion.correctOptionId}

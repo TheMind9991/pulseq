@@ -52,11 +52,29 @@ service cloud.firestore {
     // --- questions/{questionId} -------------------------------------------
     // Students may read only published questions within their own tenant. Editors/admins
     // may read and write every status within their own tenant.
+    function isValidPublishTransition() {
+      // A question may only reach 'published' from 'in_review', by someone other than its own
+      // author, who becomes the recorded reviewer (Section 5.6 — the core content-quality
+      // guarantee, enforced here rather than only client-side).
+      return request.resource.data.status != 'published' || (
+        resource.data.status == 'in_review' &&
+        request.resource.data.reviewedById == request.auth.uid &&
+        request.resource.data.reviewedById != request.resource.data.authorId
+      );
+    }
+
     match /questions/{questionId} {
       allow read: if isSignedIn() && isSameTenant(resource.data.tenantId)
         && (resource.data.status == 'published' || isEditorOrAdmin());
 
-      allow write: if isEditorOrAdmin() && isSameTenant(request.resource.data.tenantId);
+      // Always created as draft (Section 5.5.3 / 5.6) — never straight to in_review/published.
+      allow create: if isEditorOrAdmin() && isSameTenant(request.resource.data.tenantId)
+        && request.resource.data.status == 'draft';
+
+      allow update: if isEditorOrAdmin() && isSameTenant(request.resource.data.tenantId)
+        && isValidPublishTransition();
+
+      allow delete: if false; // retire via a status update instead of deleting
     }
 
     // --- sessions/{sessionId} ---------------------------------------------
@@ -88,8 +106,9 @@ service cloud.firestore {
 
     // --- errorReports/{reportId} ---------------------------------------------
     match /errorReports/{reportId} {
-      allow create: if isSignedIn() && request.resource.data.reportedByUserId == request.auth.uid;
-      allow read, update: if isEditorOrAdmin();
+      allow create: if isSignedIn() && request.resource.data.reportedByUserId == request.auth.uid
+        && isSameTenant(request.resource.data.tenantId);
+      allow read, update: if isEditorOrAdmin() && isSameTenant(resource.data.tenantId);
     }
 
     // --- tenants/{tenantId} (white-label, Phase 3+) ---------------------------

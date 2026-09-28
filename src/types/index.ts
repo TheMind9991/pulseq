@@ -3,6 +3,7 @@ import type { Locale, UserRole } from '@/lib/schemas/user';
 import type { QuestionContent } from '@/lib/schemas/question';
 import type { SessionMode, SessionStatusFilter } from '@/lib/schemas/session';
 import type { TopicStatus } from '@/lib/analytics/computeTopicAccuracy';
+import type { ErrorReportStatus } from '@/lib/schemas/errorReport';
 
 // users/{userId} — engineering spec Section 3.1.
 export interface UserDoc {
@@ -80,6 +81,19 @@ export interface UserTopicStatsDoc {
   accuracy: number;
   status: TopicStatus;
   updatedAt: Timestamp;
+}
+
+// errorReports/{reportId} — "Report an issue" affordance on QuestionCard (practice + exam
+// review), surfaced to editors/admins via /admin/reports.
+export interface ErrorReportDoc {
+  questionId: string;
+  tenantId: string;
+  reportedByUserId: string;
+  reason: string;
+  status: ErrorReportStatus;
+  createdAt: Timestamp;
+  resolvedByUserId?: string;
+  resolvedAt?: Timestamp | null;
 }
 
 export const DEFAULT_TENANT_ID = 'pulseq-core';

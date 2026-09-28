@@ -5,7 +5,7 @@ import { SignOutButton } from '@/components/app/SignOutButton';
 // Nav links are intentionally limited to routes that exist today (Phase 1: dashboard; Phase 2:
 // + practice; Phase 4: + exams). Bookmarks and settings are added as their own phases land
 // (Section 10) rather than linking ahead to pages that don't exist yet.
-export function AppHeader({ displayName }: { displayName: string }) {
+export function AppHeader({ displayName, showAdminLink }: { displayName: string; showAdminLink: boolean }) {
   return (
     <header className="flex h-14 items-center justify-between border-b border-subtle bg-surface px-6">
       <div className="flex items-center gap-6">
@@ -22,6 +22,11 @@ export function AppHeader({ displayName }: { displayName: string }) {
           <Link href="/exams" className="text-sm text-secondary hover:text-primary">
             Exams
           </Link>
+          {showAdminLink && (
+            <Link href="/admin" className="text-sm text-secondary hover:text-primary">
+              Admin
+            </Link>
+          )}
         </nav>
       </div>
       <div className="flex items-center gap-4">

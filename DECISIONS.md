@@ -304,3 +304,169 @@ than stall. Newest entries at the bottom of each phase's section.
   passed every time). All e2e tests share one `pnpm dev` instance and one emulator suite (there's
   no per-worker server/emulator provisioning), so parallel workers contend for both under this
   sandbox's CPU limits. Revisit if/when this is wired into CI with real per-worker isolation.
+
+## Phase 5 — Admin & content pipeline
+
+- **Inspected the real `Copy_of_End_round_IM_193.xlsx` directly before writing any parsing code**
+  (Section 0's own instruction), rather than building from the spec's prose description of it
+  alone. This surfaced real quirks the prose doesn't fully capture:
+  - The sheet's 50 real rows are followed by ~949 genuinely-blank rows, but those trailing rows
+    still carry a stray `false` in the `Reviewed` column (a checkbox-format default) — a
+    "stop at the first row where *every* cell is empty" check never finds a boundary at all.
+    `parseWorkbook.ts` keys the cutoff off the `Question` cell specifically instead.
+  - **8 of the 50 rows** (not just the 1 malformed-Answer row) have only a single Tags segment
+    ("Internal Medicine", no topic) — a real, common failure mode the spec's prose doesn't
+    quantify. `validateQuestionRow` correctly blocks all 8 on `too_few_tag_segments`, while still
+    reporting the subject it *could* extract from each.
+  - The subject appears as both `"Internal Medicine"` and `"Internal medicine"` across real rows
+    (confirms the spec's casing-normalization requirement is not hypothetical) — but the same
+    sheet also uses `"GIT"` as a real topic value, which a naive capitalize-every-word title-case
+    would mangle into `"Git"`. `parseTagsToTaxonomy.ts`'s title-case preserves any
+    already-fully-uppercase token (2+ chars) as an acronym instead of re-casing it.
+  - The malformed-Answer row (`"(A - selected as best clinical sign *among the options*)"`, sheet
+    row 34) is *also* one of the 8 few-tag-segment rows, and is the *only* row using Option E —
+    the messiest row in the sheet by a wide margin, and now a concrete test fixture rather than a
+    hypothetical.
+  - Committed the file itself at `tests/fixtures/Copy_of_End_round_IM_193.xlsx` and wrote a test
+    (`tests/unit/content/parseWorkbook.test.ts`) that parses and validates it directly, asserting
+    the exact real counts above (50 rows, 1 malformed Answer, 6 Comment rows, 8 blocking few-tag
+    rows, 42 importable) — this is the concrete proof for Phase 5's done-when, not a synthetic
+    stand-in.
+- **Found and fixed a real design bug via that same real-file test, before any UI existed to
+  hide it**: my first draft of `extractAnswerLetter` treated the tolerant-regex recovery path
+  (Section 5.5.1's own worked example — the malformed row above) as *equivalent to* a clean match,
+  so `validateQuestionRow` never actually flagged it at all — silently contradicting the done-when
+  ("correctly flags the one row with a malformed Answer cell"). Fixed by having
+  `extractAnswerLetter` report `wasClean: true | false` alongside a successful extraction:
+  `wasClean: false` (recovered via the tolerant fallback) is now a non-blocking warning — a human
+  should double-check it, but there *is* an unambiguous answer, so it doesn't block import on its
+  own — while a truly ambiguous or empty cell (no letter recoverable at all) is the only case that
+  blocks, matching Section 5.5.1's "ambiguous or fails... not silently defaulted to a guess" for
+  the case where there genuinely isn't a letter to recover.
+- **Bulk upload built as a Server Action (`previewBulkUpload`/`confirmBulkUpload`), not the
+  literal Cloud Function `functions/src/content/bulkUploadQuestions.ts` the spec's repo structure
+  names.** Every other mutation in this codebase (session start/answer/submit, dashboard writes)
+  already went through Server Actions specifically so Phase 6 could reuse the same server-side
+  write path (see Phase 2's DECISIONS.md entry) — introducing a second, inconsistent pattern
+  (callable Cloud Functions, with their own client-invocation shape and payload encoding) for
+  admin-only mutations, when nothing about file upload+parse actually requires it, would fragment
+  the codebase's architecture for no functional gain. Reserved real Cloud Functions for what
+  genuinely needs Firestore triggers (`setCustomClaims`, `recomputeTopicStats`). The *parsing/
+  validation* module names and separation the spec calls for (`validateQuestionRow.ts`) are kept,
+  just under `src/lib/content/` rather than `functions/src/content/`.
+  Preview and confirm are two separate calls with no server-side staging in between — the
+  validated rows round-trip through the client (which already holds them after the preview
+  response) rather than being written to a temp Firestore doc. Simple and fine at this content
+  volume (dozens to low thousands of rows); would need reconsidering only at a much larger batch
+  size than this platform's content pipeline currently produces.
+- **The author != reviewer publish rule is enforced in firestore.rules (`isValidPublishTransition`
+  on `questions/{questionId}`'s `allow update`), not just in the server action.** `publishQuestion`
+  in `src/app/admin/questions/actions.ts` also checks `authorId !== uid` before writing, but that
+  check exists only to surface a friendly error message — the rule is the actual enforcement
+  (Section 6's "rules as the real enforcement layer, not just client checks"), confirmed by
+  `tests/rules/firestore.rules.test.ts`'s `questions/{questionId}` suite: a second editor can
+  publish an `in_review` question and become `reviewedById`, the original author cannot publish
+  their own `in_review` question, publishing from any status other than `in_review` is rejected,
+  and `delete` is denied outright (retiring is a status update to `'retired'`, never a delete, so
+  a student's past session history referencing a retired question stays intact).
+- **`(admin)` was renamed to a plain `admin/` route segment, not a route group.** A route group
+  (`(admin)`) contributes no URL segment by design — the first attempt put `questions/page.tsx`
+  under `(admin)/questions/`, which built successfully but served at bare `/questions`, not
+  `/admin/questions` (caught by inspecting `next build`'s route table, not by typecheck/lint, which
+  both stayed clean throughout). Fixed by moving the whole tree to a real `src/app/admin/` folder,
+  whose own `layout.tsx` gates every route under it by the role claim — the same effect intended,
+  achieved with a real path segment instead of a group.
+- **Admin question form only lets you add/remove the *last* option (append at the end, remove the
+  end), never a specific one in the middle.** The form binds each option row's displayed letter to
+  its array index (`OPTION_IDS[index]`) to keep the UI simple, and the underlying data's real `id`
+  field (`'A'..'E'`) is what's actually persisted — removing a middle option would desync those two
+  without extra bookkeeping for no real benefit, since content is always authored/imported as a
+  contiguous A.. run. Keeping removal end-only sidesteps the desync entirely rather than adding
+  code to prevent it.
+- **Tightened the pre-existing `errorReports/{reportId}` rule to also check tenant, not just role.**
+  The original rule (from Phase 1/3's scaffold, before this collection had a real writer) let any
+  editor/admin read and update *any* tenant's reports (`allow read, update: if isEditorOrAdmin();`
+  — no `isSameTenant` check at all), which would leak report content and question IDs across
+  tenants once white-labeling is live. Added `tenantId` to `ErrorReportDoc`, and both `create` and
+  `read/update` now also require `isSameTenant(...)`, matching every other tenant-scoped
+  collection's rule shape. Covered by a new `errorReports/{reportId}` describe block in
+  `firestore.rules.test.ts` (create requires `reportedByUserId == request.auth.uid` AND matching
+  tenant; a student can never read/update; an editor can read/resolve their own tenant's report but
+  not another tenant's).
+- **"Report an issue" only renders when `feedbackMode !== 'hidden'`** (practice and exam review,
+  not the live in-progress exam) — matches the done-when's own wording ("QuestionCard (practice +
+  exam review)") and avoids adding a distraction to a timed, in-progress exam; a student who spots
+  a problem mid-exam can still report it from the review screen right after submitting.
+- **Role changes go through `users/{userId}.role`, written by the Admin SDK, not through a
+  dedicated "set claim" endpoint.** `functions/src/auth/setCustomClaims.ts` (Phase 1) already
+  treats that Firestore field as the source of truth and mirrors it into the Auth custom claim on
+  every write; `changeUserRole` (`src/app/admin/users/actions.ts`) just writes that same field via
+  `getAdminDb()`, which bypasses firestore.rules' explicit block on a client setting its own role.
+  It also calls `setCustomUserClaims` directly rather than waiting on the trigger, so the change is
+  visible immediately instead of racing an async Cloud Function — the trigger's own
+  already-in-sync check (see its comment) means this never produces a duplicate/conflicting write
+  when it fires afterward.
+- **Role management is restricted to `role === 'admin'`, not `isEditorOrAdmin()`.** AdminLayout
+  gates `/admin/*` on editor-or-admin (content management), but `/admin/users` and
+  `changeUserRole` additionally require admin specifically — deciding who can manage content is a
+  platform-administration concern, one level above managing the content itself. An editor hitting
+  `/admin/users` is redirected to `/admin` (not bounced out of the admin area entirely, since
+  they're still a legitimate admin-area user); the "Users" nav link itself is hidden for editors
+  in `AdminHeader` so this only surfaces as a redirect if they type the URL directly. The role
+  picker's own admin row is disabled client-side (can't touch your own role at all) on top of the
+  server action's "can't remove your own admin role" check — belt and suspenders against
+  self-lockout, consistent with how `publishQuestion` layers a friendly server-side check on top
+  of the rule that's the actual enforcement.
+- **`scripts/set-user-role.ts` writes both the Firestore field and the custom claim directly**,
+  rather than relying solely on the Cloud Function trigger — bootstrapping the very first admin
+  has to work even against a project where Functions haven't been deployed yet (the trigger only
+  exists once `firebase deploy --only functions` has run), which is exactly the chicken-and-egg
+  situation this script exists to break.
+
+## Phase 5 — e2e validation: real bugs the tests caught
+
+Added `tests/e2e/admin-bulk-upload.spec.ts` (the real sample file through the actual UI —
+preview, per-row pass/warning/fail report, deselect-then-confirm) and
+`tests/e2e/admin-review-queue.spec.ts` (two separate editor accounts in two separate browser
+contexts, proving author != reviewer end to end, not just at the rules-unit level), plus a shared
+`tests/e2e/helpers/adminAuth.ts` (sign up through the real UI, promote via Admin SDK, sign out/in
+so the session cookie picks up the new role claim — a custom claim change doesn't retroactively
+rewrite an already-issued session cookie). Running the full suite against real emulators (per
+this phase's own "verify by running the code" standard) surfaced three real bugs no amount of
+typecheck/lint/build had caught, since none of them are type errors:
+
+1. **`QuestionEditClient` crashed at runtime**: `Only plain objects... can be passed to Client
+   Components from Server Components. Classes... are not supported.` It took the whole `QuestionDoc`
+   as a prop, which carries Firestore `Timestamp` fields (`createdAt`/`updatedAt`) — a class
+   instance, not RSC-serializable, even though it typechecks fine (`Timestamp` is a valid TS type,
+   just not a valid one to cross the server/client boundary as a prop). Fixed by having the page
+   build a plain `defaultValues` object server-side and pass that plus `status` instead of the raw
+   doc — the same pattern `SessionHistoryTable`/`TopicAccuracyTable` already used correctly
+   (calling `.toDate()` before handing data to a client component), just missed here.
+2. **`/admin/questions` crashed at runtime**: `Event handlers cannot be passed to Client Component
+   props.` The status-filter tabs wrapped the *interactive* `Chip` component (designed for
+   `SessionFilterFields`'s client-side filtering, with a required `onClick`) inside a `<Link>`,
+   passing a no-op `onClick={() => {}}` from a Server Component — `Chip` has no `'use client'` of
+   its own, so it rendered as a Server Component too, and a function prop can never cross that
+   boundary. Fixed by dropping `Chip` here entirely and styling the `<Link>` itself as the pill
+   (also fixes an invalid `<button>`-inside-`<a>` nesting the old version had).
+3. **A genuinely flaky assertion in `admin-review-queue.spec.ts` itself** (a test bug, not an app
+   bug): `waitForURL(/\/admin\/questions\/[^/]+$/)` right after submitting the create form also
+   matches `/admin/questions/new` — "new" satisfies `[^/]+` just as well as a real document ID —
+   so on a slow render it could resolve before the actual client-side navigation away from `/new`
+   happened, capturing the wrong URL. Fixed by waiting for the review panel's `Status: draft` text
+   instead, which only ever renders on the real detail page.
+
+None of these three would have been caught by `pnpm typecheck`/`pnpm lint`/`pnpm build` — the RSC
+serialization and function-prop rules are runtime-only checks — which is exactly why this phase's
+"verify by running the code" standard treats the e2e pass as a required, not optional, step before
+any commit.
+
+Two environment-only issues, not code bugs, also worth recording since they cost real time to
+diagnose: `pnpm test:e2e` needs `FIRESTORE_EMULATOR_HOST`/`FIREBASE_AUTH_EMULATOR_HOST`/
+`FIREBASE_PROJECT_ID` exported in the shell that runs Playwright itself (Next.js auto-loads
+`.env.local` for the dev server it spawns, but Playwright's own process — and any `firebase-admin`
+call made directly from a spec file, like `adminAuth.ts` or `exam-flow.spec.ts`'s timer
+fast-forward — does not); and `practice-loop.spec.ts`/`exam-flow.spec.ts` need `pnpm seed` run
+against the emulator first (no published questions -> "Start" never navigates anywhere, which
+looks identical to a hung UI from the outside, not an obviously-empty-state error).

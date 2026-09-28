@@ -1,5 +1,6 @@
 import { OptionRow } from '@/components/quiz/OptionRow';
 import { ExplanationPanel } from '@/components/quiz/ExplanationPanel';
+import { ReportIssueButton } from '@/components/quiz/ReportIssueButton';
 import type { QuestionOption } from '@/lib/schemas/question';
 
 // 'immediate' (tutor, Section 5.2): reveal once this question has an answer, then lock.
@@ -8,6 +9,7 @@ import type { QuestionOption } from '@/lib/schemas/question';
 export type FeedbackMode = 'immediate' | 'hidden' | 'always';
 
 interface QuestionCardProps {
+  questionId: string;
   stem: string;
   options: QuestionOption[];
   correctOptionId: string;
@@ -19,6 +21,7 @@ interface QuestionCardProps {
 }
 
 export function QuestionCard({
+  questionId,
   stem,
   options,
   correctOptionId,
@@ -48,6 +51,7 @@ export function QuestionCard({
         ))}
       </div>
       {showCorrectness && <ExplanationPanel isCorrect={isCorrect} correctExplanation={correctExplanation} />}
+      {feedbackMode !== 'hidden' && <ReportIssueButton questionId={questionId} />}
     </div>
   );
 }

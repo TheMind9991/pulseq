@@ -41,6 +41,7 @@ export function ExamReview({
                 Question {index + 1}
               </p>
               <QuestionCard
+                questionId={question.id}
                 stem={question.stem}
                 options={question.options}
                 correctOptionId={question.correctOptionId}

@@ -91,6 +91,7 @@ export function ExamSession({
       />
       <div className="mx-auto max-w-3xl px-6 py-8">
         <QuestionCard
+          questionId={currentQuestion.id}
           stem={currentQuestion.stem}
           options={currentQuestion.options}
           correctOptionId={currentQuestion.correctOptionId}

@@ -20,6 +20,8 @@ let testEnv: RulesTestEnvironment;
 
 const STUDENT_A = { uid: 'student-a', role: 'student', tenantId: 'pulseq-core' };
 const STUDENT_B = { uid: 'student-b', role: 'student', tenantId: 'pulseq-core' };
+const EDITOR_A = { uid: 'editor-a', role: 'editor', tenantId: 'pulseq-core' };
+const EDITOR_B = { uid: 'editor-b', role: 'editor', tenantId: 'pulseq-core' };
 
 function baseUserDoc(uid: string) {
   return {
@@ -130,6 +132,216 @@ describe('users/{userId}', () => {
 
     const db = testEnv.authenticatedContext(STUDENT_A.uid).firestore();
     await assertFails(db.collection('users').doc(STUDENT_A.uid).update({ role: 'admin' }));
+  });
+});
+
+function authed(user: { uid: string; role: string; tenantId: string }) {
+  return testEnv.authenticatedContext(user.uid, { role: user.role, tenantId: user.tenantId }).firestore();
+}
+
+function baseQuestionDoc(overrides: Record<string, unknown> = {}) {
+  return {
+    stem: 'A 35-year-old woman presents with palpitations. What is the diagnosis?',
+    options: [
+      { id: 'A', text: 'Congestive heart failure' },
+      { id: 'B', text: 'Cardiac asthma' },
+    ],
+    correctOptionId: 'B',
+    correctExplanation: 'B is correct because of the classic presentation.',
+    subject: 'Internal Medicine',
+    topic: 'Cardiology',
+    tagsRaw: 'Internal Medicine, Cardiology',
+    difficulty: 2,
+    status: 'draft',
+    sourceReviewed: false,
+    tenantId: 'pulseq-core',
+    authorId: EDITOR_A.uid,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+describe('questions/{questionId}', () => {
+  it('lets an editor create a draft question but rejects creating straight to in_review/published', async () => {
+    const db = authed(EDITOR_A);
+    await assertSucceeds(db.collection('questions').doc('q1').set(baseQuestionDoc()));
+    await assertFails(db.collection('questions').doc('q2').set(baseQuestionDoc({ status: 'in_review' })));
+    await assertFails(db.collection('questions').doc('q3').set(baseQuestionDoc({ status: 'published' })));
+  });
+
+  it('denies a student from creating or reading a non-published question', async () => {
+    const student = authed(STUDENT_A);
+    await assertFails(student.collection('questions').doc('q1').set(baseQuestionDoc()));
+
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('questions').doc('q1').set(baseQuestionDoc());
+    });
+    await assertFails(student.collection('questions').doc('q1').get());
+  });
+
+  it('lets a student read a published question in their own tenant but not another tenant', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.collection('questions').doc('q1').set(baseQuestionDoc({ status: 'published' }));
+      await db
+        .collection('questions')
+        .doc('q2')
+        .set(baseQuestionDoc({ status: 'published', tenantId: 'other-tenant' }));
+    });
+
+    const student = authed(STUDENT_A);
+    await assertSucceeds(student.collection('questions').doc('q1').get());
+    await assertFails(student.collection('questions').doc('q2').get());
+  });
+
+  it('blocks an editor from publishing their own question (self-review)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .firestore()
+        .collection('questions')
+        .doc('q1')
+        .set(baseQuestionDoc({ status: 'in_review', authorId: EDITOR_A.uid }));
+    });
+
+    const author = authed(EDITOR_A);
+    await assertFails(
+      author
+        .collection('questions')
+        .doc('q1')
+        .update({ status: 'published', reviewedById: EDITOR_A.uid }),
+    );
+  });
+
+  it('lets a different editor publish a question that is in_review', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .firestore()
+        .collection('questions')
+        .doc('q1')
+        .set(baseQuestionDoc({ status: 'in_review', authorId: EDITOR_A.uid }));
+    });
+
+    const reviewer = authed(EDITOR_B);
+    await assertSucceeds(
+      reviewer
+        .collection('questions')
+        .doc('q1')
+        .update({ status: 'published', reviewedById: EDITOR_B.uid }),
+    );
+  });
+
+  it('blocks publishing a question that is not currently in_review', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .firestore()
+        .collection('questions')
+        .doc('q1')
+        .set(baseQuestionDoc({ status: 'draft', authorId: EDITOR_A.uid }));
+    });
+
+    const reviewer = authed(EDITOR_B);
+    await assertFails(
+      reviewer
+        .collection('questions')
+        .doc('q1')
+        .update({ status: 'published', reviewedById: EDITOR_B.uid }),
+    );
+  });
+
+  it('blocks a reviewer from publishing under someone else\'s uid as reviewedById', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .firestore()
+        .collection('questions')
+        .doc('q1')
+        .set(baseQuestionDoc({ status: 'in_review', authorId: EDITOR_A.uid }));
+    });
+
+    const reviewer = authed(EDITOR_B);
+    await assertFails(
+      reviewer
+        .collection('questions')
+        .doc('q1')
+        .update({ status: 'published', reviewedById: EDITOR_A.uid }),
+    );
+  });
+
+  it('allows non-publishing updates (e.g. moving draft to in_review) by the author', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .firestore()
+        .collection('questions')
+        .doc('q1')
+        .set(baseQuestionDoc({ status: 'draft', authorId: EDITOR_A.uid }));
+    });
+
+    const author = authed(EDITOR_A);
+    await assertSucceeds(author.collection('questions').doc('q1').update({ status: 'in_review' }));
+  });
+
+  it('denies deleting a question outright (retire via status update instead)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('questions').doc('q1').set(baseQuestionDoc());
+    });
+
+    const editor = authed(EDITOR_A);
+    await assertFails(editor.collection('questions').doc('q1').delete());
+  });
+});
+
+describe('errorReports/{reportId}', () => {
+  function baseReport(overrides: Record<string, unknown> = {}) {
+    return {
+      questionId: 'q1',
+      tenantId: 'pulseq-core',
+      reportedByUserId: STUDENT_A.uid,
+      reason: 'The correct answer looks wrong.',
+      status: 'open',
+      createdAt: new Date(),
+      ...overrides,
+    };
+  }
+
+  it('lets a signed-in student create a report for themself in their own tenant', async () => {
+    const student = authed(STUDENT_A);
+    await assertSucceeds(student.collection('errorReports').doc('r1').set(baseReport()));
+  });
+
+  it("rejects a create where reportedByUserId isn't the caller, or the tenant doesn't match", async () => {
+    const student = authed(STUDENT_A);
+    await assertFails(
+      student.collection('errorReports').doc('r1').set(baseReport({ reportedByUserId: STUDENT_B.uid })),
+    );
+    await assertFails(
+      student.collection('errorReports').doc('r2').set(baseReport({ tenantId: 'other-tenant' })),
+    );
+  });
+
+  it('denies a student from reading or updating reports (editor/admin only)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('errorReports').doc('r1').set(baseReport());
+    });
+
+    const student = authed(STUDENT_A);
+    await assertFails(student.collection('errorReports').doc('r1').get());
+    await assertFails(student.collection('errorReports').doc('r1').update({ status: 'resolved' }));
+  });
+
+  it('lets an editor in the same tenant read and resolve a report, but not one from another tenant', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.collection('errorReports').doc('r1').set(baseReport());
+      await db.collection('errorReports').doc('r2').set(baseReport({ tenantId: 'other-tenant' }));
+    });
+
+    const editor = authed(EDITOR_A);
+    await assertSucceeds(editor.collection('errorReports').doc('r1').get());
+    await assertSucceeds(
+      editor.collection('errorReports').doc('r1').update({ status: 'resolved', resolvedByUserId: EDITOR_A.uid }),
+    );
+
+    await assertFails(editor.collection('errorReports').doc('r2').get());
   });
 });
 
