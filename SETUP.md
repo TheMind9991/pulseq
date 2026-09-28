@@ -1,6 +1,8 @@
 # Setup
 
-How to point this app at a (new or existing) Firebase project.
+How to point this app at a (new or existing) Firebase project — or run entirely against the
+local emulators with no Firebase project at all (see "Emulator-only local dev" below), useful
+for trying out the app or running the practice-loop flow without any real credentials.
 
 ## 1. Create/select a Firebase project
 
@@ -83,6 +85,29 @@ onboarding.
   emulator** (no real project needed), but requires Java (the emulator's runtime) to be
   installed.
 - `pnpm test:e2e` — Playwright e2e tests (not yet added as of Phase 1).
+
+## Emulator-only local dev (no Firebase project needed)
+
+Useful for trying the app out, or for running the practice loop end-to-end, without setting up
+any real Firebase project or credentials:
+
+```bash
+# terminal 1 — starts Firestore + Auth + Storage emulators
+pnpm exec firebase emulators:start
+
+# terminal 2 — seed dev questions into the emulator, then run the app against it
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_PROJECT_ID=demo-pulseq pnpm seed
+pnpm dev
+```
+
+With `.env.local` set as shown commented-out in `.env.example` (`NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true`
+plus the placeholder `NEXT_PUBLIC_FIREBASE_API_KEY`/`NEXT_PUBLIC_FIREBASE_PROJECT_ID` and the two
+`*_EMULATOR_HOST` vars), both the client SDK (`src/lib/firebase/client.ts`) and the admin SDK
+(`src/lib/firebase/admin.ts`) automatically route to the emulators instead of a real project —
+sign-up, onboarding, and practice sessions all work against emulator-local data that resets when
+the emulator stops. The Firebase Auth emulator accepts any email/password (no real email
+delivery, no Google sign-in popup — use the emulator UI at `http://127.0.0.1:4000` if you need to
+inspect users directly).
 
 ## Notes
 

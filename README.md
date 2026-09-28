@@ -8,10 +8,11 @@ full requirements. `DECISIONS.md` logs judgment calls made where the spec left a
 
 ## Status
 
-Phase 1 (Foundation) of the 8-phase build plan (engineering spec Section 10): auth, onboarding,
-design tokens, and Firestore security rules are in place. Subsequent phases (practice loop,
-analytics, exams, admin/content pipeline, monetization, marketing site, i18n/white-label) are
-not yet built.
+Phases 1-2 of the 8-phase build plan (engineering spec Section 10) are in place: auth,
+onboarding, design tokens, Firestore security rules, and the tutor-mode practice loop (session
+builder, question screen, scoring, `userQuestionStats`). Subsequent phases (analytics/dashboard,
+timed exams, admin/content pipeline, monetization, marketing site, i18n/white-label) are not yet
+built.
 
 ## Tech stack
 
@@ -19,7 +20,7 @@ not yet built.
 - Firebase: Firestore, Auth, Storage, Cloud Functions
 - Tailwind CSS
 - react-hook-form + zod (shared client/server validation)
-- Vitest (unit + Firestore rules tests), Playwright (e2e, not yet added)
+- Vitest (unit + Firestore rules tests), Playwright (e2e)
 - pnpm
 
 ## Getting started
@@ -42,7 +43,8 @@ pnpm dev
 | `pnpm lint` | `next lint` |
 | `pnpm test` | Unit tests (Vitest) |
 | `pnpm test:rules` | Firestore security rules tests (spins up the Firestore emulator) |
-| `pnpm test:e2e` | Playwright e2e tests |
+| `pnpm test:e2e` | Playwright e2e tests (needs the Firebase emulators running — see SETUP.md) |
+| `pnpm seed` | Seed dev-only sample questions into Firestore (real project or emulator) |
 
 Cloud Functions live in `functions/` as a separate package — see `functions/package.json` and
 `SETUP.md` for building/deploying them.

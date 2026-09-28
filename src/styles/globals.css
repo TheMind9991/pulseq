@@ -7,6 +7,12 @@
  * These values are a conventional, reasonable stand-in so Phase 1 is not blocked. Replace this
  * block verbatim with the real tokens.css contents when the design system zip is available; see
  * DECISIONS.md. Theme is selected via [data-theme] on <html> (see ThemeToggle.tsx), dark by default.
+ *
+ * Colors are stored as "R G B" triplets (not hex) so tailwind.config.ts can wrap them as
+ * rgb(var(--x) / <alpha-value>) — the standard pattern that lets Tailwind opacity modifiers
+ * (bg-success/10, border-accent/50, ...) work on custom CSS-variable colors. A plain hex value
+ * would silently fail to produce any CSS for a `/<opacity>` utility. Keep this format if the
+ * real tokens.css is pasted in later — convert its hex values to "R G B" triplets too.
  */
 
 :root {
@@ -28,45 +34,45 @@
 }
 
 :root[data-theme='dark'] {
-  --color-bg-base: #0b0f14;
-  --color-bg-surface: #131920;
-  --color-bg-surface-hover: #1a212b;
+  --color-bg-base: 11 15 20;
+  --color-bg-surface: 19 25 32;
+  --color-bg-surface-hover: 26 33 43;
 
-  --color-text-primary: #f2f5f7;
-  --color-text-secondary: #b7c1cc;
-  --color-text-muted: #7c8a99;
+  --color-text-primary: 242 245 247;
+  --color-text-secondary: 183 193 204;
+  --color-text-muted: 124 138 153;
 
-  --color-border-subtle: #232b35;
-  --color-border-default: #2f3947;
+  --color-border-subtle: 35 43 53;
+  --color-border-default: 47 57 71;
 
-  --color-accent: #4f8cff;
-  --color-accent-hover: #6c9fff;
-  --color-accent-fg: #ffffff;
+  --color-accent: 79 140 255;
+  --color-accent-hover: 108 159 255;
+  --color-accent-fg: 255 255 255;
 
-  --color-success: #34c17a;
-  --color-warning: #e2a33d;
-  --color-danger: #e2584d;
+  --color-success: 52 193 122;
+  --color-warning: 226 163 61;
+  --color-danger: 226 88 77;
 }
 
 :root[data-theme='light'] {
-  --color-bg-base: #f7f9fb;
-  --color-bg-surface: #ffffff;
-  --color-bg-surface-hover: #f0f3f6;
+  --color-bg-base: 247 249 251;
+  --color-bg-surface: 255 255 255;
+  --color-bg-surface-hover: 240 243 246;
 
-  --color-text-primary: #10151b;
-  --color-text-secondary: #414c58;
-  --color-text-muted: #6b7684;
+  --color-text-primary: 16 21 27;
+  --color-text-secondary: 65 76 88;
+  --color-text-muted: 107 118 132;
 
-  --color-border-subtle: #e4e9ee;
-  --color-border-default: #d3dae1;
+  --color-border-subtle: 228 233 238;
+  --color-border-default: 211 218 225;
 
-  --color-accent: #2f6fed;
-  --color-accent-hover: #1f5adf;
-  --color-accent-fg: #ffffff;
+  --color-accent: 47 111 237;
+  --color-accent-hover: 31 90 223;
+  --color-accent-fg: 255 255 255;
 
-  --color-success: #1d9b5e;
-  --color-warning: #b9791f;
-  --color-danger: #c94238;
+  --color-success: 29 155 94;
+  --color-warning: 185 121 31;
+  --color-danger: 201 66 56;
 }
 
 html {
@@ -77,6 +83,6 @@ html[data-theme='light'] {
 }
 
 body {
-  background-color: var(--color-bg-base);
-  color: var(--color-text-primary);
+  background-color: rgb(var(--color-bg-base));
+  color: rgb(var(--color-text-primary));
 }

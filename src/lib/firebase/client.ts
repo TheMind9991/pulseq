@@ -1,9 +1,9 @@
 'use client';
 
 import { type FirebaseApp, getApps, initializeApp } from 'firebase/app';
-import { type Auth, GoogleAuthProvider, getAuth } from 'firebase/auth';
-import { type Firestore, getFirestore } from 'firebase/firestore';
-import { type FirebaseStorage, getStorage } from 'firebase/storage';
+import { type Auth, GoogleAuthProvider, connectAuthEmulator, getAuth } from 'firebase/auth';
+import { type Firestore, connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { type FirebaseStorage, connectStorageEmulator, getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -29,3 +29,17 @@ export const storage: FirebaseStorage = isBrowser
   ? getStorage(firebaseApp)
   : (undefined as unknown as FirebaseStorage);
 export const googleAuthProvider = new GoogleAuthProvider();
+
+// Local dev against `firebase emulators:start`, no real Firebase project needed — see SETUP.md.
+// Mirrors src/lib/firebase/admin.ts's FIRESTORE_EMULATOR_HOST/FIREBASE_AUTH_EMULATOR_HOST
+// detection on the server side. Guarded against Next.js Fast Refresh re-running this module and
+// calling connect*Emulator twice on the same instance, which throws.
+if (isBrowser && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true') {
+  const globalWithFlag = globalThis as typeof globalThis & { __pulseqEmulatorsConnected?: boolean };
+  if (!globalWithFlag.__pulseqEmulatorsConnected) {
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+    connectFirestoreEmulator(db, '127.0.0.1', 8080);
+    connectStorageEmulator(storage, '127.0.0.1', 9199);
+    globalWithFlag.__pulseqEmulatorsConnected = true;
+  }
+}

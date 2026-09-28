@@ -27,6 +27,8 @@ ui-debug.log
 /tests/e2e/report
 /tests/e2e/results
 /playwright-report
+/test-results
+/blob-report
 
 # misc
 .DS_Store

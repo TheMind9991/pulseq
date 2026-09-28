@@ -15,10 +15,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:rules": "firebase emulators:exec --only firestore \"vitest run --config vitest.rules.config.ts\"",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "seed": "tsx scripts/seed-firestore.ts"
   },
   "dependencies": {
-    "next": "14.2.15",
+    "next": "14.2.35",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "firebase": "^10.14.1",
@@ -37,12 +38,13 @@
     "postcss": "^8.4.47",
     "autoprefixer": "^10.4.20",
     "eslint": "^8.57.1",
-    "eslint-config-next": "14.2.15",
+    "eslint-config-next": "14.2.35",
     "prettier": "^3.3.3",
     "vitest": "^2.1.2",
     "@firebase/rules-unit-testing": "^3.0.4",
     "@playwright/test": "^1.48.0",
     "dotenv": "^16.4.5",
-    "firebase-tools": "^13.20.0"
+    "firebase-tools": "^13.20.0",
+    "tsx": "^4.19.1"
   }
 }

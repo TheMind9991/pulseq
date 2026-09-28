@@ -83,3 +83,95 @@ than stall. Newest entries at the bottom of each phase's section.
   full `@typescript-eslint` plugin config would register it), and referencing an undefined rule
   hard-fails `next build`'s lint step for every file. `next/core-web-vitals` already applies
   reasonable defaults; revisit if stricter linting is wanted later.
+
+## Phase 2 — Core practice loop
+
+- **Bumped `next` 14.2.15 → 14.2.35** (and `eslint-config-next` to match) at the start of this
+  phase — `pnpm install` flagged a known security advisory against 14.2.15. Section 1 pins the
+  major version ("Next.js 14"), not an exact patch, so staying on 14.2.x while taking the fix is
+  within spec. Rebuilt and re-ran the full test suite after the bump; no breakage.
+- **Subject/topic taxonomy (`SUBJECT_TOPICS` in `src/lib/constants/practice.ts`) is hardcoded**,
+  same reasoning and precedent as `FACULTIES`/`MODULES` in Phase 1: Firestore has no cheap
+  "distinct" query, and there's no real content yet to derive it from (the real xlsx sample is
+  reserved for Phase 5's importer, not this seed data — see next entry). Used by both the
+  practice session builder's filter chips and the seed script, so they can't drift apart. Revisit
+  once Phase 5 content exists — derive available subjects/topics from actually-published
+  questions instead.
+- **Seed content is synthetic, not the real `Copy_of_End_round_IM_193.xlsx`.** The engineering
+  spec Section 0 is explicit that the real xlsx is for testing the Phase 5 bulk-upload importer
+  against its real-world quirks (malformed `Answer` cells, per-option explanation gaps, etc.) —
+  using it here would both misuse that fixture and fail Phase 2's "3-4 subjects" requirement
+  (the real file is 100% Internal Medicine). `scripts/seed-firestore.ts` instead hand-authors 52
+  textbook-level MCQs across 4 subjects / 13 topics, written to `status: 'published'` directly —
+  a dev-only shortcut around the author≠reviewer rule (Section 5.6), clearly commented as such at
+  the top of the script. Not real, human-reviewed course content.
+- **`startPracticeSession` fetches all tenant-scoped published questions and filters/ranks
+  in application code**, rather than composing Firestore composite-index queries for arbitrary
+  multi-select subject+topic+difficulty combinations. Section 5.2's "least-recently-seen
+  preferred" selection already implies post-fetch ranking logic, not a pure Firestore query. Fine
+  at Phase 2's ~50-question scale (existing `(tenantId, status, subject, topic)` index already
+  covers the `tenantId`+`status` prefix used); revisit — pagination, a dedicated search index, or
+  narrower Firestore-level filtering — once content approaches the product PRD's 3,000-question
+  target (Section 8) or the 10k-concurrent-user NFR makes per-session full-collection reads
+  costly.
+- **Answer submission goes through a server action (`submitAnswer`), not a direct client-side
+  Firestore write**, even though `firestore.rules` already permits the owning user to write their
+  own `sessions`/`userQuestionStats` docs directly. Section 7.2 (Phase 6) explicitly describes
+  daily-cap enforcement as reusing "the same server-side write path that already persists
+  answers" — meaning that path is assumed to already be server-side by the time Phase 6 lands.
+  Building it as a server action now avoids reworking this in Phase 6. Firestore rules remain as
+  defense-in-depth, not the primary write path. `isCorrect` is also computed server-side (from
+  `questions/{id}.correctOptionId`, never trusted from the client) for the same reason, even
+  though a student can already see the full question doc (rules don't currently redact answer
+  fields from published-question reads — see next entry).
+- **Published question docs are not redacted before the correct answer is revealed.**
+  `firestore.rules` (Section 6) gates `questions` reads only by `status`/`tenantId`, with no
+  mention of hiding `correctOptionId`/explanations from an unanswered question — so a student
+  could technically read the answer key via devtools before selecting an option. This matches the
+  spec's own rule design (content is never gated, per the product PRD's "never gated by payment
+  status" philosophy extended here) and anti-scraping is called out as a separate, later NFR
+  concern (rate limiting/watermarking — product PRD Section 7), not answer-key redaction. Not
+  changed in Phase 2; flagged here rather than silently patched, since redacting would need a
+  answer-stripped read path (e.g. a callable/server action returning sanitized question content)
+  that the spec doesn't currently ask for.
+- **'flagged' status filter and question-level bookmarking are out of scope for Phase 2.**
+  `userQuestionStats.bookmarked` (Section 3.4) is the schema field for it, but no build phase in
+  Section 10 explicitly assigns building the bookmark toggle or the `/bookmarks` page, and Phase
+  2's own done-when checklist doesn't mention it. The session builder's status filter exposes
+  only Unseen/Incorrect for now; `sessionStatusFilterSchema` still includes `'flagged'` for schema
+  fidelity with Section 3.3. Build the toggle + `/bookmarks` page whenever bookmarking is
+  explicitly scoped (or fold it into Phase 5 alongside error reports, which is a similar shape of
+  work).
+- **Per-session `flaggedForReview` (Section 3.3, distinct from the bookmark above — an
+  ephemeral "come back to this" flag scoped to one session) is also deferred.** Not in Phase 2's
+  done-when, and Section 5.2's step 3 only specifies the rail must reflect
+  answered-correct/answered-incorrect/current/unanswered — no flagged state. Schema field exists
+  (`SessionAnswer.flaggedForReview`) and defaults to `false`; the UI to set it can land alongside
+  the bookmark toggle above.
+- **Design tokens converted from hex to "R G B" triplets** (`src/styles/globals.css`,
+  `tailwind.config.ts`) — found while building the quiz components, which are the first to use
+  Tailwind opacity modifiers (`bg-success/10`, `border-danger`, etc. for the correct/incorrect
+  option and explanation-panel tints). A bare `--color-x: #hex` custom property makes Tailwind
+  silently emit no CSS at all for `bg-x/10`-style utilities (confirmed by inspecting the compiled
+  CSS, not just assumed) — the standard fix is storing "R G B" and wrapping as
+  `rgb(var(--x) / <alpha-value>)` in the Tailwind color config, which is what's now in place. Also
+  fixed the two places that referenced a raw `var(--color-x)` directly (`globals.css`'s `body`
+  rule, and an `accent-[...]` arbitrary value in the onboarding form) to wrap with `rgb(...)` too.
+  If the real `pulseq-site.zip` tokens.css is pasted in later, convert its hex values to this same
+  triplet format rather than dropping the `rgb()`/`<alpha-value>` wiring.
+- **Added emulator-only local dev support** (`NEXT_PUBLIC_USE_FIREBASE_EMULATORS`,
+  `FIRESTORE_EMULATOR_HOST`/`FIREBASE_AUTH_EMULATOR_HOST` handling in
+  `src/lib/firebase/client.ts` and `admin.ts`) — not explicitly requested by the spec, but needed
+  to actually verify Phase 2 end-to-end (still no live Firebase project connected to this build;
+  see Phase 1's DECISIONS.md entries). Kept as a permanent, documented option (SETUP.md's
+  "Emulator-only local dev" section) since it's a genuinely useful local-dev/CI capability going
+  forward, not a one-off testing hack — every write path (session cookie, Firestore, custom
+  claims) runs unmodified against it.
+- **Added a real Playwright E2E test** (`tests/e2e/practice-loop.spec.ts`,
+  `playwright.config.ts`) covering Section 9's first required happy path (sign-up → onboarding →
+  start a practice session → answer every question), run against the emulators above and a real
+  Chromium browser — this is what actually verified Phase 2 works end-to-end, not just unit/rules
+  tests. The "see it reflected on the dashboard" portion of Section 9's description is deferred
+  until Phase 3 builds the real dashboard (currently an intentional empty shell). Not yet wired
+  into CI — would need the emulators started as a CI step first; tracked as a follow-up, same
+  status as the `pnpm test:rules` gap noted for CI in Phase 1.

@@ -134,7 +134,7 @@ export default function OnboardingPage() {
                       : selectedModules.filter((m) => m !== module);
                     setValue('modules', next, { shouldValidate: true });
                   }}
-                  className="accent-[var(--color-accent)]"
+                  className="accent-[rgb(var(--color-accent))]"
                 />
                 {module}
               </label>

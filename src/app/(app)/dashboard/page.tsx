@@ -1,16 +1,13 @@
-import { getServerUser } from '@/lib/auth/getServerUser';
-import { getAdminDb } from '@/lib/firebase/admin';
-import type { UserDoc } from '@/types';
+import { getCurrentProfile } from '@/lib/auth/getServerUser';
 
 // Empty shell for Phase 1 (Section 10, Phase 1 done-when: "land on an empty /dashboard shell").
 // Real stat cards / topic accuracy / session history land in Phase 3 once userTopicStats and
 // sessions exist (Section 5.4).
 export default async function DashboardPage() {
-  const serverUser = await getServerUser();
-  if (!serverUser) return null; // AppLayout already redirects unauthenticated requests
+  const current = await getCurrentProfile(); // re-uses AppLayout's cached read for this request
+  if (!current) return null; // AppLayout already redirects unauthenticated/un-onboarded requests
 
-  const snapshot = await getAdminDb().collection('users').doc(serverUser.uid).get();
-  const profile = snapshot.data() as UserDoc;
+  const { profile } = current;
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">

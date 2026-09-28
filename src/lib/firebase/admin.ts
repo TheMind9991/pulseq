@@ -19,6 +19,14 @@ function getAdminApp(): App {
     return cachedApp;
   }
 
+  // The Admin SDK auto-routes to the emulators when these env vars are set (same mechanism
+  // scripts/seed-firestore.ts uses) — no real service account needed for local dev against
+  // `firebase emulators:start`. See SETUP.md.
+  if (process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    cachedApp = initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID ?? 'demo-pulseq' });
+    return cachedApp;
+  }
+
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   // Service account keys are stored with literal "\n" sequences in most env systems.
