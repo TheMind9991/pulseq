@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEditorOrAdmin() {
+      return isSignedIn()
+        && (request.auth.token.role == 'editor' || request.auth.token.role == 'admin');
+    }
+
+    // Question images: readable by any signed-in user (access-gated content, not public
+    // scraping), writable only by editors/admins uploading through the admin question editor.
+    match /questions/{tenantId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isEditorOrAdmin();
+    }
+
+    // Tenant branding assets (white-label, Phase 3+).
+    match /tenants/{tenantId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isEditorOrAdmin();
+    }
+  }
+}
