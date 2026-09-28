@@ -5,6 +5,7 @@ import { submitAnswer } from '@/app/(app)/practice/[sessionId]/actions';
 import { ProgressStrip } from '@/components/quiz/ProgressStrip';
 import { QuestionRail, type RailStatus } from '@/components/quiz/QuestionRail';
 import { QuestionCard } from '@/components/quiz/QuestionCard';
+import { Arrow } from '@/components/ui/Arrow';
 import type { QuestionOption } from '@/lib/schemas/question';
 
 export interface SessionQuestion {
@@ -118,7 +119,7 @@ export function PracticeSession({
             onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
             className="text-sm text-secondary hover:text-primary disabled:opacity-40"
           >
-            ← Previous
+            <Arrow>←</Arrow> Previous
           </button>
           <button
             type="button"
@@ -126,7 +127,7 @@ export function PracticeSession({
             onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
             className="text-sm text-secondary hover:text-primary disabled:opacity-40"
           >
-            Next →
+            Next <Arrow>→</Arrow>
           </button>
         </div>
       </div>

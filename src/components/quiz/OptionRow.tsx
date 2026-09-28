@@ -43,7 +43,7 @@ export function OptionRow({
         data-testid={`option-${option.id}`}
         disabled={locked}
         onClick={onSelect}
-        className={`flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left transition-colors ${stateClasses} ${
+        className={`flex w-full items-start gap-3 rounded-md border px-4 py-3 text-start transition-colors ${stateClasses} ${
           locked ? 'cursor-default' : 'cursor-pointer'
         }`}
       >

@@ -124,7 +124,7 @@ export default function BulkUploadPage() {
           <div className="mt-4 overflow-hidden rounded-lg border border-subtle bg-surface">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-subtle text-left text-secondary">
+                <tr className="border-b border-subtle text-start text-secondary">
                   <th scope="col" className="px-3 py-3 font-medium"></th>
                   <th scope="col" className="px-3 py-3 font-medium">
                     Row

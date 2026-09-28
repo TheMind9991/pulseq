@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getCurrentProfile, getServerUser } from '@/lib/auth/getServerUser';
+import { getTenantName } from '@/lib/tenants/getTenantName';
 import { AdminHeader } from '@/components/app/AdminHeader';
 
 // Gated on the role custom claim (never a Firestore field — Section 6), same as every other
@@ -13,9 +14,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const current = await getCurrentProfile();
   if (!current) redirect('/onboarding');
 
+  const tenantName = serverUser.tenantId ? await getTenantName(serverUser.tenantId) : undefined;
+
   return (
     <div className="min-h-screen bg-base">
-      <AdminHeader displayName={current.profile.displayName} isAdmin={serverUser.role === 'admin'} />
+      <AdminHeader
+        displayName={current.profile.displayName}
+        isAdmin={serverUser.role === 'admin'}
+        tenantName={tenantName}
+      />
       <main>{children}</main>
     </div>
   );

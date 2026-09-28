@@ -1,13 +1,22 @@
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { LocaleToggle } from '@/components/ui/LocaleToggle';
 import { SignOutButton } from '@/components/app/SignOutButton';
 
-export function AdminHeader({ displayName, isAdmin }: { displayName: string; isAdmin: boolean }) {
+export function AdminHeader({
+  displayName,
+  isAdmin,
+  tenantName = 'PulseQ',
+}: {
+  displayName: string;
+  isAdmin: boolean;
+  tenantName?: string;
+}) {
   return (
     <header className="flex h-14 items-center justify-between border-b border-subtle bg-surface px-6">
       <div className="flex items-center gap-6">
         <Link href="/admin" className="text-sm font-semibold text-primary">
-          PulseQ Admin
+          {tenantName} Admin
         </Link>
         <nav className="flex items-center gap-4">
           <Link href="/admin" className="text-sm text-secondary hover:text-primary">
@@ -34,6 +43,7 @@ export function AdminHeader({ displayName, isAdmin }: { displayName: string; isA
           Back to app
         </Link>
         <span className="text-sm text-secondary">{displayName}</span>
+        <LocaleToggle />
         <ThemeToggle />
         <SignOutButton />
       </div>

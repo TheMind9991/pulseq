@@ -27,7 +27,7 @@ export function SessionHistoryTable({ sessions }: { sessions: SessionHistoryRow[
     <div className="overflow-hidden rounded-lg border border-subtle bg-surface">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-subtle text-left text-secondary">
+          <tr className="border-b border-subtle text-start text-secondary">
             <th scope="col" className="px-4 py-3 font-medium">
               Mode
             </th>
@@ -37,7 +37,7 @@ export function SessionHistoryTable({ sessions }: { sessions: SessionHistoryRow[
             <th scope="col" className="px-4 py-3 font-medium">
               Status
             </th>
-            <th scope="col" className="px-4 py-3 text-right font-medium">
+            <th scope="col" className="px-4 py-3 text-end font-medium">
               Score
             </th>
           </tr>
@@ -56,7 +56,7 @@ export function SessionHistoryTable({ sessions }: { sessions: SessionHistoryRow[
                   </Link>
                 )}
               </td>
-              <td className="px-4 py-3 text-right text-primary">
+              <td className="px-4 py-3 text-end text-primary">
                 {session.score ? `${session.score.correct} / ${session.score.total}` : `— / ${session.questionCount}`}
               </td>
             </tr>

@@ -107,6 +107,16 @@ export interface DailyUsageDoc {
   updatedAt: Timestamp;
 }
 
+// tenants/{tenantId} — Section 3.7, white-label scaffolding. Auto-provisioned with defaults by
+// functions/src/auth/setCustomClaims.ts the first time any user's tenantId claim points at it —
+// see DECISIONS.md for why creating a tenant is deliberately not a separate admin action.
+export interface TenantDoc {
+  name: string;
+  domain?: string;
+  branding: { logoUrl?: string; primaryColor?: string };
+  createdAt: Timestamp;
+}
+
 export const DEFAULT_TENANT_ID = 'pulseq-core';
 export const DAILY_QUESTION_CAP = 100;
 export const DAILY_EXAM_SECONDS_CAP = 3600;

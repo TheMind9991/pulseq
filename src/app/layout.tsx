@@ -23,11 +23,31 @@ const THEME_INIT_SCRIPT = `
 })();
 `;
 
+// Sets lang/dir on <html> before first paint, same rationale as the theme script above — mirrors
+// the storage key used by LocaleToggle.tsx (Section 4.5: locale drives RTL, not a separate
+// setting). English remains the only fully-translated locale (Section 4.5's own allowance); this
+// only flips document direction and lang, so every screen's RTL layout can be verified with real
+// user content even before a full Arabic string catalog exists — see DECISIONS.md.
+const LOCALE_INIT_SCRIPT = `
+(function () {
+  try {
+    var stored = localStorage.getItem('pulseq-locale');
+    var locale = stored === 'ar' ? 'ar' : 'en';
+    document.documentElement.setAttribute('lang', locale);
+    document.documentElement.setAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr');
+  } catch (e) {
+    document.documentElement.setAttribute('lang', 'en');
+    document.documentElement.setAttribute('dir', 'ltr');
+  }
+})();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" dir="ltr" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: LOCALE_INIT_SCRIPT }} />
       </head>
       <body>
         <AuthSync />

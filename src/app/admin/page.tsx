@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getServerUser } from '@/lib/auth/getServerUser';
 import { getAdminDb } from '@/lib/firebase/admin';
+import { Arrow } from '@/components/ui/Arrow';
 import type { QuestionDoc } from '@/types';
 
 interface CoverageRow {
@@ -61,7 +62,7 @@ export default async function AdminOverviewPage() {
           href="/admin/questions?status=in_review"
           className="mb-6 inline-block text-sm text-accent hover:underline"
         >
-          Review {totals.inReview} question(s) in the queue →
+          Review {totals.inReview} question(s) in the queue <Arrow>→</Arrow>
         </Link>
       )}
 
@@ -71,23 +72,23 @@ export default async function AdminOverviewPage() {
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-subtle text-left text-secondary">
+              <tr className="border-b border-subtle text-start text-secondary">
                 <th scope="col" className="px-4 py-3 font-medium">
                   Subject
                 </th>
                 <th scope="col" className="px-4 py-3 font-medium">
                   Topic
                 </th>
-                <th scope="col" className="px-4 py-3 text-right font-medium">
+                <th scope="col" className="px-4 py-3 text-end font-medium">
                   Published
                 </th>
-                <th scope="col" className="px-4 py-3 text-right font-medium">
+                <th scope="col" className="px-4 py-3 text-end font-medium">
                   In review
                 </th>
-                <th scope="col" className="px-4 py-3 text-right font-medium">
+                <th scope="col" className="px-4 py-3 text-end font-medium">
                   Draft
                 </th>
-                <th scope="col" className="px-4 py-3 text-right font-medium">
+                <th scope="col" className="px-4 py-3 text-end font-medium">
                   Retired
                 </th>
               </tr>
@@ -97,10 +98,10 @@ export default async function AdminOverviewPage() {
                 <tr key={`${row.subject}::${row.topic}`} className="border-b border-subtle last:border-0">
                   <td className="px-4 py-3 text-primary">{row.subject}</td>
                   <td className="px-4 py-3 text-secondary">{row.topic}</td>
-                  <td className="px-4 py-3 text-right text-primary">{row.published}</td>
-                  <td className="px-4 py-3 text-right text-secondary">{row.inReview}</td>
-                  <td className="px-4 py-3 text-right text-secondary">{row.draft}</td>
-                  <td className="px-4 py-3 text-right text-muted">{row.retired}</td>
+                  <td className="px-4 py-3 text-end text-primary">{row.published}</td>
+                  <td className="px-4 py-3 text-end text-secondary">{row.inReview}</td>
+                  <td className="px-4 py-3 text-end text-secondary">{row.draft}</td>
+                  <td className="px-4 py-3 text-end text-muted">{row.retired}</td>
                 </tr>
               ))}
             </tbody>

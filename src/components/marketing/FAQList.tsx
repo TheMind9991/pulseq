@@ -41,7 +41,7 @@ export function FAQList() {
             <details key={faq.question} className="group py-4">
               <summary className="flex cursor-pointer list-none items-center justify-between text-base font-medium text-primary">
                 {faq.question}
-                <span className="ml-4 text-muted transition-transform group-open:rotate-45">+</span>
+                <span className="ms-4 text-muted transition-transform group-open:rotate-45">+</span>
               </summary>
               <p className="mt-2 text-sm text-secondary">{faq.answer}</p>
             </details>

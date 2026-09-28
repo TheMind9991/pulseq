@@ -7,6 +7,7 @@ import { QuestionRail, type RailStatus } from '@/components/quiz/QuestionRail';
 import { QuestionCard } from '@/components/quiz/QuestionCard';
 import { ExamCountdown } from '@/components/quiz/ExamCountdown';
 import { Button } from '@/components/ui/Button';
+import { Arrow } from '@/components/ui/Arrow';
 import type { SessionQuestion } from '@/components/quiz/PracticeSession';
 
 interface AnswerState {
@@ -109,7 +110,7 @@ export function ExamSession({
             onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
             className="text-sm text-secondary hover:text-primary disabled:opacity-40"
           >
-            ← Previous
+            <Arrow>←</Arrow> Previous
           </button>
           <button
             type="button"
@@ -117,7 +118,7 @@ export function ExamSession({
             onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
             className="text-sm text-secondary hover:text-primary disabled:opacity-40"
           >
-            Next →
+            Next <Arrow>→</Arrow>
           </button>
         </div>
         <div className="mt-8 border-t border-subtle pt-6">

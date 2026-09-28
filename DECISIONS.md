@@ -607,3 +607,88 @@ looks identical to a hung UI from the outside, not an obviously-empty-state erro
   prerendered at 178 B), and a signed-in user landing on the marketing page instead of the
   dashboard is a minor, harmless inconvenience next to adding a server-side auth check to the
   one route in this app that's supposed to load fastest and needs the least.
+
+## Phase 8 — Polish: RTL/Arabic, white-label scaffolding
+
+- **Section 4.5 says "Arabic UI can ship as a Phase 5 toggle"; Section 10's actual phase list puts
+  this work in Phase 8.** Followed Section 10 throughout this build (it's the section that defines
+  the 8-phase structure and done-when criteria this session has been driven by), and treated
+  Section 4.5's "Phase 5" as a stale cross-reference from an earlier draft of the spec rather than
+  a conflicting instruction — nothing in Phase 5's own task list (admin & content pipeline) or
+  done-when criteria mentions locale/RTL, so Phase 5 was never blocked on this.
+- **`stemAr`/`explanationAr` fields were never added to `QuestionContent` in Phase 1**, despite
+  Section 4.5 explicitly calling them out as part of the architecture that "must exist from Phase 1
+  so it is not retrofitted." That gap is real and this phase does not close it: Phase 8's own
+  done-when criterion is "switching locale to Arabic renders every built screen correctly in RTL
+  with no visual breakage" — a layout/rendering requirement, not a content requirement — and there
+  is still no Arabic string catalog, no admin UI to author bilingual question content, and no real
+  Arabic text anywhere in the build. Adding empty `stemAr?`/`explanationAr?` fields now, with
+  nothing to populate them and no reader for them, would be exactly the kind of speculative schema
+  surface this build avoids elsewhere (no code would read or write them). Logged here as a known
+  gap for whoever adds real Arabic question content: the fields, the admin authoring UI, and the
+  practice/exam screens' locale-aware rendering all still need to be built together as one
+  follow-up, not assumed already in place because Section 4.5 asked for them in Phase 1.
+- **Scope for "RTL verification across all Phase 1-7 screens" is layout correctness, not string
+  translation.** `LocaleToggle`/`dir`+`lang` wiring, the logical-CSS-properties audit (all physical
+  `ml-`/`mr-`/`pl-`/`pr-`/`left-`/`right-`/`text-left`/`text-right`/`border-l-`/`border-r-`/
+  `rounded-l-`/`rounded-r-`/`space-x-` utilities converted to logical equivalents across 7 files),
+  and the new `Arrow` component (mirrors `→`/`←` via `rtl:-scale-x-100` so "forward" always points
+  the reading-forward direction in either mode) all verify that layout mirrors correctly with the
+  existing English content — not that the UI is translated. This matches Section 4.5's own
+  allowance that English remains the only shipped locale for early phases, generalized here since
+  no Arabic string catalog exists anywhere in the build yet (see the `stemAr`/`explanationAr` gap
+  above). A real consequence of this scope choice, observed and left as-is: English prose rendered
+  inside an RTL-`dir` container gets its trailing punctuation repositioned to the visual start of
+  the sentence by the browser's bidi algorithm (e.g. a period lands before "Upgrade to remove ads,"
+  not after) — correct default behavior for mixed-direction content, not a bug, and not something
+  to special-case with a forced `dir="ltr"` on prose blocks, since that would be wrong once those
+  same blocks hold genuine Arabic text.
+- **Real bug found and fixed: email/password `<input>`s visually scrambled under `dir="rtl"`.**
+  `<input>` elements inherit direction from `<html dir="rtl">`, and the browser's Unicode
+  Bidirectional Algorithm repositions Latin/numeric "weak"/"neutral" characters based on paragraph
+  direction even without literal character-order reversal — an email like
+  `hasan123@example.com` rendered with the leading digits and `@` visually relocated. Fixed by
+  adding an explicit `dir="ltr"` to all 4 email/password inputs across `/sign-up` and `/sign-in` —
+  the correct, standard fix for inherently-Latin-script fields (also applies to URL fields, code/
+  token inputs, etc., none of which exist yet in this build).
+- **Real regression found only by running the full e2e suite, not just the new `rtl` spec:**
+  `Arrow`'s first version wrapped its glyph in `aria-hidden="true"` (a defensible a11y instinct —
+  a decorative directional glyph shouldn't be read aloud when the text label already says
+  "Next"/"Previous"). That silently changed the accessible name of every button/link using it
+  (`"Next →"` became just `"Next"`), which broke two pre-existing, previously-green tests
+  (`monetization.spec.ts`'s `getByRole('link', { name: 'Go unlimited →' })`,
+  `practice-loop.spec.ts`'s `getByRole('button', { name: 'Next →' })`) that were never touched by
+  this phase's own changes. Fixed by dropping `aria-hidden` from `Arrow` — the glyph stays part of
+  the accessible name exactly as it was before this component existed; only its visual direction
+  changes per locale. This is the reason this phase's validation step runs the entire Playwright
+  suite, not only `tests/e2e/rtl.spec.ts` in isolation — the isolated run stayed green throughout
+  and would never have surfaced this.
+- **Tenants are Admin-SDK-only and auto-provisioned, not created through a separate admin
+  action.** `functions/src/auth/setCustomClaims.ts` now calls `ensureTenantExists(tenantId)` right
+  before syncing custom claims: the first time any user's `tenantId` claim points at a `tenants/
+  {tenantId}` doc that doesn't exist yet, it's created with default branding
+  (`name: 'PulseQ'`, no logo/color override). `firestore.rules`'s existing Phase 1 rule
+  (`allow read: if isSignedIn() && isSameTenant(tenantId); allow write: if false;`) already
+  matched this design and needed no changes — only test coverage (3 new cases in
+  `tests/rules/firestore.rules.test.ts`: same-tenant read succeeds, cross-tenant read is denied,
+  every client write is denied regardless of role). This is what makes Phase 8's second done-when
+  clause true today, not just in theory: "a second tenant can theoretically be created without a
+  data migration" simply means provisioning a user (or a future admin action) with a new
+  `tenantId` claim — no schema change, no manual Firestore document creation, no code path that
+  assumes a single hardcoded tenant.
+- **Tenant-scoping audit: every existing query was already tenant-scoped.** Grepped every
+  Firestore query across `src/` for a missing `tenantId` filter; found none — Phase 1's rules
+  design already required `tenantId` on every document and every query path already carried it
+  through from the signed-in user's own claim. The only genuinely new piece of tenant-aware code
+  this phase adds is `src/lib/tenants/getTenantName.ts` (a `cache()`-wrapped server read, `'PulseQ'`
+  fallback if the tenant doc is somehow missing) and its wiring into `AppHeader`/`AdminHeader` so
+  the header brand name is no longer a hardcoded string.
+- **Dev-server Fast Refresh staleness produced a false-alarm test failure — noted here as an
+  operational trap, not a code decision.** Mid-phase, `rtl.spec.ts` failed with the locale toggle
+  simply absent from the DOM on a fresh page load, no console error. Root cause: three stacked
+  `pnpm dev` process trees (ports 3000/3001/3002) left over from repeated `app/layout.tsx` edits
+  during this phase — a known Next.js dev-server quirk where root-layout changes don't always
+  survive Fast Refresh cleanly on a long-running process. A `kill -9` of every stray PID plus
+  `rm -rf .next` and one clean restart resolved it with no code change. Documented so a future
+  session sees the same symptom (a component that should obviously be there isn't, no error)
+  and checks for stacked dev-server processes before assuming the component itself regressed.

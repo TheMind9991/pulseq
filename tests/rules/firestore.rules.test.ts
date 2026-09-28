@@ -395,3 +395,36 @@ describe('userTopicStats/{docId}', () => {
     await assertFails(asStudentB.collection('userTopicStats').doc(docId).get());
   });
 });
+
+describe('tenants/{tenantId}', () => {
+  it('lets a signed-in user read their own tenant but not another tenant', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.collection('tenants').doc('pulseq-core').set({ name: 'PulseQ', branding: {}, createdAt: new Date() });
+      await db.collection('tenants').doc('other-tenant').set({ name: 'Other', branding: {}, createdAt: new Date() });
+    });
+
+    const student = authed(STUDENT_A); // tenantId: 'pulseq-core'
+    await assertSucceeds(student.collection('tenants').doc('pulseq-core').get());
+    await assertFails(student.collection('tenants').doc('other-tenant').get());
+  });
+
+  it('denies an unauthenticated read', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('tenants').doc('pulseq-core').set({ name: 'PulseQ', branding: {}, createdAt: new Date() });
+    });
+
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(db.collection('tenants').doc('pulseq-core').get());
+  });
+
+  it('denies every client write — tenants are Admin-SDK-only (auto-provisioned by setCustomClaims)', async () => {
+    const student = authed(STUDENT_A);
+    await assertFails(student.collection('tenants').doc('pulseq-core').set({ name: 'Hijacked', branding: {}, createdAt: new Date() }));
+
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('tenants').doc('pulseq-core').set({ name: 'PulseQ', branding: {}, createdAt: new Date() });
+    });
+    await assertFails(student.collection('tenants').doc('pulseq-core').update({ name: 'Hijacked' }));
+  });
+});

@@ -1,8 +1,21 @@
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 const DEFAULT_ROLE = 'student';
 const DEFAULT_TENANT_ID = 'pulseq-core';
+
+// Section 3.7 / Phase 8: the concrete mechanism by which "a second tenant can be created without
+// a data migration" — a tenant needs no provisioning step of its own, it comes into existence the
+// first time any user's tenantId claim points at it. Idempotent (checked, not blindly
+// set-with-merge) so it never clobbers branding an admin has since customized via the (not yet
+// built) tenant-settings UI.
+async function ensureTenantExists(tenantId: string): Promise<void> {
+  const ref = getFirestore().collection('tenants').doc(tenantId);
+  const snap = await ref.get();
+  if (snap.exists) return;
+  await ref.set({ name: tenantId, branding: {}, createdAt: FieldValue.serverTimestamp() });
+}
 
 // Mirrors users/{userId}.role and .tenantId into the Firebase Auth custom claim that
 // firestore.rules and every server-side check actually trust (engineering spec Section 3.1 /
@@ -27,6 +40,8 @@ export const setCustomClaims = onDocumentWritten('users/{userId}', async (event)
     });
     return;
   }
+
+  await ensureTenantExists(data.tenantId);
 
   const userRecord = await getAuth().getUser(userId);
   const currentClaims = userRecord.customClaims ?? {};

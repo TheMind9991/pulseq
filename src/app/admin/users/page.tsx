@@ -28,7 +28,7 @@ export default async function AdminUsersPage() {
       <div className="overflow-hidden rounded-lg border border-subtle bg-surface">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-subtle text-left text-secondary">
+            <tr className="border-b border-subtle text-start text-secondary">
               <th scope="col" className="px-4 py-3 font-medium">
                 Name
               </th>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { LocaleToggle } from '@/components/ui/LocaleToggle';
 import { Button } from '@/components/ui/Button';
 
 export function MarketingHeader() {
@@ -10,6 +11,7 @@ export function MarketingHeader() {
           PulseQ
         </Link>
         <div className="flex items-center gap-3">
+          <LocaleToggle />
           <ThemeToggle />
           <Link href="/sign-in" className="text-sm text-secondary hover:text-primary">
             Sign in

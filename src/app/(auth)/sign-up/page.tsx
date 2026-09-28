@@ -64,6 +64,7 @@ export default function SignUpPage() {
           <input
             id="email"
             type="email"
+            dir="ltr"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -77,6 +78,7 @@ export default function SignUpPage() {
           <input
             id="password"
             type="password"
+            dir="ltr"
             required
             minLength={6}
             value={password}
